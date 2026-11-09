@@ -50,6 +50,12 @@ const TOKI_LINES = {
   problems: ["Sensei, the catalog has {n} problem(s). I have marked them for you."],
   empty: ["The library is empty. Add a game to the catalog and I will take care of the rest."],
   error: ["That did not work, Sensei. I have put the details in a notice."],
+  updateAvailable: ["Sensei, a newer version of me is available: {v}. I recommend it. I may be biased.",
+                    "Toki Hub {v} is out. The update button is glowing at the top. Gold suits it."],
+  updateCurrent: ["I am already the newest version, {v}. Peak performance."],
+  updateDownloading: ["Downloading version {v} of myself. This is a strange feeling."],
+  updateInstalling: ["Installing the update. I will be right back, Sensei. Please don't go anywhere."],
+  updated: ["Update complete. I am now version {v}. I feel... newer. Pyon."],
 };
 
 const Toki = (() => {

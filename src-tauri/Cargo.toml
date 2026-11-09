@@ -1,0 +1,17 @@
+[package]
+name = "toki-hub"
+version = "0.2.1"
+edition = "2021"
+description = "Toki Hub: a launcher for all of Rowstar10's games and every version of them."
+publish = false
+
+[build-dependencies]
+tauri-build = { version = "2.7", features = [] }
+
+[dependencies]
+toki-hub-core = { path = "../core" }
+tauri = { version = "2.12", features = [] }
+tauri-plugin-dialog = "2.8"
+tauri-plugin-opener = "2.7"
+serde_json = "1"
+include_dir = "0.7"

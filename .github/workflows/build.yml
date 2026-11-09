@@ -1,0 +1,90 @@
+name: Build Toki Hub
+
+# Builds Toki Hub.exe on Windows, runs the tests (including a real install of Python and pygame),
+# tries the exe out, and keeps it as a download on the run's page (the "Artifacts" section).
+#
+# On the default branch, a version that has no release yet (`version` in src-tauri/Cargo.toml) is
+# published as a release. Its tag is tauri-v<version>: the hub's updater looks for that prefix, so it
+# must not change, or copies already out there would stop finding updates.
+
+on:
+  push:
+    paths-ignore: ["**.md", "docs/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      # A real Python first on the PATH, for the tests that launch Python games.
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install the build tools
+        run: npm ci
+
+      - name: Run the tests
+        run: cargo test -p toki-hub-core
+
+      - name: Install Python and pygame for real, and run a game with them
+        run: cargo test -p toki-hub-core --test prerequisites_and_updates -- --ignored real_
+
+      - name: Read the hub's version
+        id: version
+        shell: bash
+        run: echo "version=$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -1)" >> "$GITHUB_OUTPUT"
+
+      - name: Build the exe
+        run: npm run build
+
+      - name: Name the exe
+        shell: bash
+        run: mkdir -p dist && cp target/release/toki-hub.exe "dist/Toki Hub.exe"
+
+      - name: Try out the exe
+        shell: pwsh
+        run: ./smoke-test.ps1 -Exe "dist/Toki Hub.exe"
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: Toki Hub
+          path: dist/Toki Hub.exe
+          if-no-files-found: error
+
+      - name: Publish a release for a new version
+        if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          tag="tauri-v$VERSION"
+          if gh release view "$tag" > /dev/null 2>&1; then
+            echo "Release $tag already exists. Bump version in src-tauri/Cargo.toml to publish a new one."
+            exit 0
+          fi
+          cat > notes.md <<EOF
+          Download **Toki Hub.exe** below and double-click it. Nothing to install. Copies already running offer this update by themselves.
+
+          Windows may say it "protected your PC", because the exe is not code-signed. Click **More info**, then **Run anyway**.
+          EOF
+          gh release create "$tag" "dist/Toki Hub.exe#Toki Hub.exe" --target "$GITHUB_SHA" --latest \
+            --title "Toki Hub $VERSION" --notes-file notes.md

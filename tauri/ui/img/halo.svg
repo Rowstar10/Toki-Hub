@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- Toki Hub mark: a halo of three rings, the outer one broken into four arcs. -->
-  <g fill="none" stroke="#3fb0ef" stroke-linecap="round">
-    <circle cx="32" cy="32" r="27" stroke-width="4" stroke-dasharray="34.4 8" transform="rotate(-50 32 32)"/>
-    <circle cx="32" cy="32" r="18.5" stroke-width="3.2"/>
-    <circle cx="32" cy="32" r="10.5" stroke-width="2.6" stroke="#6cc8f7"/>
-  </g>
-  <circle cx="32" cy="32" r="3.2" fill="#f2d98d"/>
-</svg>

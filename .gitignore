@@ -1,9 +1,5 @@
-__pycache__/
-*.pyc
-build/
+target/
+node_modules/
 dist/
-.venv/
-venv/
-
-# Personal mascot art goes here but is not committed (see ui/img/README.md)
+src-tauri/gen/
 ui/img/toki.png

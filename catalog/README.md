@@ -11,10 +11,10 @@ catalog/
     cover.jpg     wide banner at the top of the game's page (1280x720 works well)
 ```
 
-After any change, run `python main.py check` to catch mistakes, then press the reload button in the hub
-(or restart it).
+After any change, press the reload button in the hub: mistakes show up as catalog problems in the
+library. GitHub also checks the whole catalog on every push (the build fails if anything is wrong).
 
-- **New game:** `python main.py new-game "My Game"` creates the folder and a starter `game.json`.
+- **New game:** copy the `hu-taong` folder, rename it, and edit its `game.json` and pictures.
 - **New version:** add an entry to the game's `versions` list. Order doesn't matter: the hub sorts
   them newest first (`1.10` > `1.9` > `1.0` > `1.0-beta`) and badges the newest as *Latest*.
 
@@ -93,9 +93,8 @@ Python games can also say what they need:
 "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] }
 ```
 
-The Tauri version installs that Python and those packages for the game when it is installed (a private
-copy, nothing system-wide). Pin package versions (`==`) so old versions keep working as packages
-change. The Python version checks these fields but runs games with the Python set in its Settings.
+Toki Hub installs that Python and those packages for the game when it is installed (a private copy,
+nothing system-wide). Pin package versions (`==`) so old versions keep working as packages change.
 
 ## Recipes
 
@@ -142,8 +141,5 @@ This is how Hu Taong 1.0 is listed right now. Players need Python with the game'
 
 ### A whole new game
 
-```
-python main.py new-game "Toki's Adventure"
-```
-
-Then add `icon.png`, `cover.jpg` and a version as above, and run `python main.py check`.
+Copy `catalog/hu-taong` to a new folder named after the game (like `catalog/tokis-adventure`), then change
+the title, pictures and versions in it. Press reload in the hub to see it.

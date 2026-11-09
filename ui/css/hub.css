@@ -86,6 +86,16 @@ code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-siz
 .icon-btn:active { transform: translateY(1px); }
 .icon-btn svg { width: 20px; height: 20px; }
 .icon-btn.spinning svg { animation: spin 0.8s linear; }
+.update-btn { display: inline-flex; align-items: center; gap: 8px; height: 42px; padding: 0 18px; border: none; border-radius: 10px;
+  transform: skewX(var(--skew)); background: linear-gradient(180deg, #fdeebf, var(--gold)); color: var(--gold-ink); font-weight: 800;
+  box-shadow: var(--shadow); cursor: pointer; animation: glow 2.4s ease-in-out infinite; }
+.update-btn > * { transform: skewX(calc(var(--skew) * -1)); }
+.update-btn svg { width: 18px; height: 18px; }
+.update-btn:hover { filter: brightness(1.05); }
+@keyframes glow { 50% { box-shadow: var(--shadow), 0 0 0 4px rgba(242, 217, 141, 0.45); } }
+.update-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.update-notes { max-height: 260px; overflow-y: auto; margin-bottom: 4px; }
+.update-progress { max-width: none; margin-top: 10px; }
 
 /* ---------- Layout ---------- */
 .layout { display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 20px; padding: 0 26px; min-height: 0; }

@@ -3,7 +3,6 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="toki-token" content="__TOKI_TOKEN__">
   <title>Toki Hub</title>
   <link rel="icon" href="img/halo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="css/hub.css">
@@ -26,6 +25,7 @@
       <span class="brand-name">Toki <em>Hub</em></span>
     </div>
     <div class="topbar-actions">
+      <button id="btn-update" class="update-btn" type="button" hidden><span class="update-label">Update</span></button>
       <button id="btn-reload" class="icon-btn" type="button" title="Reload the catalog" aria-label="Reload the catalog"></button>
       <button id="btn-settings" class="icon-btn" type="button" title="Settings" aria-label="Settings"></button>
     </div>
@@ -76,8 +76,8 @@
       <label class="field">
         <span class="field-label">Python (for games that run from source)</span>
         <input id="set-python" type="text" spellcheck="false" autocomplete="off">
-        <span class="field-help">Leave empty to use the Python that runs Toki Hub. That Python needs each game's
-          packages installed (Hu Taong needs <code>pip install pygame</code>).</span>
+        <span class="field-help">Leave empty and Toki Hub installs the Python each game needs, with its packages, just
+          for that game. Set one only to use your own Python instead (it then needs each game's packages).</span>
       </label>
 
       <label class="field">
@@ -90,6 +90,14 @@
           token on GitHub (Settings &rsaquo; Developer settings) with read-only <b>Contents</b> access to your game
           repositories. It is kept in settings.json on this computer and never shown again.</span>
       </label>
+
+      <div class="field">
+        <span class="field-label">Updates</span>
+        <div class="update-row">
+          <span class="field-help" id="update-status"></span>
+          <button type="button" class="btn btn-ghost btn-small" id="btn-check-updates"><span>Check now</span></button>
+        </div>
+      </div>
 
       <div class="field">
         <span class="field-label">Folders</span>
@@ -111,21 +119,13 @@
     <h2 class="modal-title">Add a game</h2>
     <p>Every game is a folder in the <b>catalog</b> with a <code>game.json</code> that lists its versions and where
       to download each one. To add one:</p>
-    <ol class="steps" data-mode="source">
-      <li>Create the entry: <code>python main.py new-game "My Game"</code></li>
-      <li>Add an <code>icon.png</code> and <code>cover.jpg</code> to its folder, and its versions to
-        <code>game.json</code>. <code>catalog/README.md</code> has copy-paste examples for GitHub releases,
-        source code, direct links and files on this computer.</li>
-      <li>Check it: <code>python main.py check</code></li>
-      <li>Press the reload button at the top right. The game appears in the library.</li>
-    </ol>
-    <ol class="steps" data-mode="exe" hidden>
+    <ol class="steps">
       <li>Open your catalog folder (button below) and make a folder for the game, named like <code>my-game</code>.</li>
       <li>Put a <code>game.json</code> in it, with an <code>icon.png</code> and <code>cover.jpg</code>.
         <code>catalog/README.md</code> in the Toki-Hub repository explains the format, with copy-paste examples.</li>
       <li>Press the reload button at the top right. Any mistakes show up as catalog problems in the library.</li>
     </ol>
-    <p data-mode="exe" hidden>Games added to the <code>catalog</code> folder of the Toki-Hub repository are built into
+    <p>Games added to the <code>catalog</code> folder of the Toki-Hub repository are built into
       the next Toki Hub release instead, for every copy of the hub.</p>
     <p>New versions of an existing game work the same way: add an entry to its <code>versions</code> list.</p>
     <div class="modal-actions">
@@ -141,6 +141,20 @@
     <div class="modal-actions">
       <button type="button" class="btn btn-ghost" data-open-place="catalog"><span>Open catalog folder</span></button>
       <button type="button" class="btn btn-primary" data-close><span>Close</span></button>
+    </div>
+  </dialog>
+
+  <dialog id="update-dialog" class="modal">
+    <h2 class="modal-title" id="update-title">Update Toki Hub</h2>
+    <p class="muted" id="update-subtitle"></p>
+    <div class="notes update-notes" id="update-notes"></div>
+    <div class="progress update-progress" id="update-progress" hidden>
+      <div class="progress-top"><span>Downloading</span><span class="progress-text" id="update-progress-text"></span></div>
+      <div class="progress-track"><div class="progress-fill" id="update-progress-fill"></div></div>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" data-close><span>Later</span></button>
+      <button type="button" class="btn btn-primary" id="update-now"><span>Update and restart</span></button>
     </div>
   </dialog>
 
