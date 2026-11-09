@@ -87,6 +87,16 @@ working directory, and its output goes to a log (the hub's **Log** button).
 | `python` | `path` with the Python set in Settings (by default the one running the hub), with no console window |
 | `open` | `path` with whatever the system opens it with, e.g. an `index.html` in the browser |
 
+Python games can also say what they need:
+
+```json
+"launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] }
+```
+
+The Tauri version installs that Python and those packages for the game when it is installed (a private
+copy, nothing system-wide). Pin package versions (`==`) so old versions keep working as packages
+change. The Python version checks these fields but runs games with the Python set in its Settings.
+
 ## Recipes
 
 ### A Windows .exe from a GitHub release (recommended for finished versions)

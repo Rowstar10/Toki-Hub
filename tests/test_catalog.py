@@ -27,7 +27,8 @@ class RealCatalogTests(unittest.TestCase):
         self.assertTrue(hu_taong.icon.is_file() and hu_taong.cover.is_file())
         build = hu_taong.version("1.0").build_for("windows")
         self.assertEqual(build.source["type"], "github-archive")
-        self.assertEqual(build.launch, {"type": "python", "path": "main.py", "args": []})
+        self.assertEqual(build.launch, {"type": "python", "path": "main.py", "args": [],
+                                        "python": "3.12", "packages": ["pygame==2.6.1"]})
 
 
 class CatalogValidationTests(HubTestCase):
@@ -98,6 +99,20 @@ class CatalogValidationTests(HubTestCase):
         ]))
         catalog = self.load()
         self.assertTrue(all(not v.builds for v in catalog.game("game").versions))
+        self.assertEqual(len(catalog.problems), 2)
+
+    def test_python_requirements_are_checked(self):
+        launch = {"type": "python", "path": "main.py"}
+        write_game(self.catalog_dir, "game", game_with([
+            version_with("1.0", GOOD_SOURCE, {**launch, "python": "3.12", "packages": ["pygame==2.6.1"]}),
+            version_with("1.1", GOOD_SOURCE, {**launch, "python": "three"}),
+            version_with("1.2", GOOD_SOURCE, {**launch, "packages": ["--index-url=https://evil.example"]}),
+        ]))
+        catalog = self.load()
+        game = catalog.game("game")
+        self.assertEqual(game.version("1.0").builds[0].launch["packages"], ["pygame==2.6.1"])
+        self.assertEqual(game.version("1.1").builds, [])
+        self.assertEqual(game.version("1.2").builds, [])
         self.assertEqual(len(catalog.problems), 2)
 
     def test_platform_specific_build_wins_over_any(self):

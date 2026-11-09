@@ -14,9 +14,18 @@ Windows may say it "protected your PC", because the exe isn't code-signed. Click
 
 ## Differences from the Python version
 
+- **It updates itself.** A few seconds after it starts (and every six hours) it checks for a newer
+  `tauri-v…` release. If there is one, a gold **Update** button appears at the top: it downloads the
+  new exe, checks it against the checksum GitHub records for it, swaps it in and restarts. Settings ›
+  Updates shows the status and has **Check now**. The repository is private, so this needs the GitHub
+  token in Settings, with access to this repository as well as the game repositories.
+- **Installing a Python game installs what it needs.** The Python version and packages in its catalog
+  entry (`"python"`, `"packages"`) are installed just for that game, using
+  [uv](https://docs.astral.sh/uv/): nothing system-wide, nothing added to the PATH, no admin rights.
+  Uninstalling a game removes its packages (the Python itself is kept for other games). If a Python is
+  set in Settings, that is used instead.
 - Settings and installed games are in `%LOCALAPPDATA%\Toki Hub (Tauri)`.
 - To add a game without a new release, put its folder in `%LOCALAPPDATA%\Toki Hub (Tauri)\catalog`.
-- Python games use the `py` launcher on Windows, unless another Python is set in Settings.
 
 ## Releasing a new version
 

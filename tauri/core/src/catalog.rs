@@ -19,7 +19,7 @@ const LAUNCH_TYPES: [&str; 3] = ["executable", "python", "open"];
 const GAME_FIELDS: [&str; 9] = ["title", "tagline", "description", "developer", "tags", "icon", "cover", "accent", "versions"];
 const VERSION_FIELDS: [&str; 4] = ["version", "date", "notes", "builds"];
 const BUILD_FIELDS: [&str; 4] = ["platform", "source", "launch", "note"];
-const LAUNCH_FIELDS: [&str; 3] = ["type", "path", "args"];
+const LAUNCH_FIELDS: [&str; 5] = ["type", "path", "args", "python", "packages"];
 
 /// Where to download a build from.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -67,6 +67,12 @@ pub struct Launch {
     pub path: String,
     #[serde(default)]
     pub args: Vec<String>,
+    /// For python games: the Python version to install for it (default: runtime::DEFAULT_PYTHON).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub python: String,
+    /// For python games: packages to install for it, like "pygame==2.6.1".
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub packages: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -508,10 +514,36 @@ fn load_launch(launch: Option<&Value>, place: &str, check: &mut Checker) -> Opti
             return None;
         }
     };
+    let python = check.text(launch, "python", &place, false);
+    if !python.is_empty() && !is_python_version(&python) {
+        check.report(&place, "'python' must be a version like \"3.12\"");
+        return None;
+    }
+    let packages = match launch.get("packages") {
+        None => Vec::new(),
+        Some(Value::Array(items))
+            if items.iter().all(|p| p.as_str().is_some_and(|p| !p.trim().is_empty() && !p.trim().starts_with('-'))) =>
+        {
+            items.iter().filter_map(|p| p.as_str().map(|p| p.trim().to_string())).collect()
+        }
+        Some(_) => {
+            check.report(&place, "'packages' must be a list of package names, like [\"pygame==2.6.1\"]");
+            return None;
+        }
+    };
+    if kind != "python" && (!python.is_empty() || !packages.is_empty()) {
+        check.report(&place, "'python' and 'packages' only apply to python games (ignored)");
+    }
     let kind = match kind {
         "executable" => LaunchKind::Executable,
         "python" => LaunchKind::Python,
         _ => LaunchKind::Open,
     };
-    Some(Launch { kind, path: unix_style, args })
+    Some(Launch { kind, path: unix_style, args, python, packages })
+}
+
+/// "3", "3.12" or "3.12.7".
+fn is_python_version(text: &str) -> bool {
+    let parts: Vec<&str> = text.split('.').collect();
+    parts.len() <= 3 && parts.iter().all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()))
 }

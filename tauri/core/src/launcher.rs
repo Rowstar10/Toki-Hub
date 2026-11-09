@@ -18,6 +18,7 @@ use serde_json::{json, Value};
 use crate::catalog::{Launch, LaunchKind};
 use crate::installer::make_executable;
 use crate::paths::{is_within, safe_name};
+use crate::runtime::{env_python, ENV_DIR};
 use crate::settings::Settings;
 use crate::{fail, HubError, Result};
 
@@ -100,7 +101,15 @@ impl Launcher {
             return Ok(json!({"tracked": false}));
         }
         let mut command_line = match launch.kind {
-            LaunchKind::Python => self.settings.python_command(),
+            LaunchKind::Python => {
+                // The game's own Python (see runtime.rs), unless the player chose one in Settings.
+                let own = env_python(&folder.join(ENV_DIR));
+                if self.settings.get("python").is_empty() && own.is_file() {
+                    vec![own.to_string_lossy().into_owned()]
+                } else {
+                    self.settings.python_command()
+                }
+            }
             _ => {
                 make_executable(&target);
                 Vec::new()

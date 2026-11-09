@@ -38,6 +38,7 @@ const COMMAND_ARGS = {
   launch: ["gameId", "version"], stop: ["gameId", "version"],
   open_folder: ["gameId", "version"], open_log: ["gameId", "version"], open_place: ["which"],
   save_settings: ["changes"], clear_token: [], pick_folder: [],
+  check_for_updates: [], download_update: [], apply_update: [],
 };
 
 async function api(name, ...args) {
@@ -149,7 +150,7 @@ function gameStatus(game) {
   const running = game.versions.find((v) => isRunning(game.id, v.version));
   if (running) return { text: `Running ${vlabel(running.version)}`, cls: "running" };
   const busy = game.versions.map((v) => activeTask(game.id, v.version)).find(Boolean);
-  if (busy) return { text: `Downloading ${vlabel(busy.version)}${progressText(busy, true)}`, cls: "busy" };
+  if (busy) return { text: `${taskVerb(busy)} ${vlabel(busy.version)}${progressText(busy, true)}`, cls: "busy" };
   const installed = game.versions.filter((v) => installedInfo(game.id, v.version));
   if (installed.length === 1) return { text: `Installed ${vlabel(installed[0].version)}`, cls: "installed" };
   if (installed.length > 1) return { text: `${installed.length} versions installed`, cls: "installed" };
@@ -157,9 +158,11 @@ function gameStatus(game) {
   return { text: "Not installed", cls: "" };
 }
 
+const taskVerb = (task) => (task.status === "installing" ? "Installing" : "Downloading");
+
 function progressText(task, short = false) {
   if (task.status === "queued") return short ? "…" : "Preparing…";
-  if (task.status === "installing") return short ? "…" : "Installing…";
+  if (task.status === "installing") return short ? "…" : task.stage || "Installing…";
   if (task.total) {
     const pct = Math.floor((task.received / task.total) * 100);
     return short ? ` ${pct}%` : `${pct}% · ${formatBytes(task.received)} of ${formatBytes(task.total)}`;
@@ -257,7 +260,7 @@ function actionBar(game, version) {
 
   if (task) {
     main.push(el("div", { class: "progress", "data-task-id": task.id },
-      el("div", { class: "progress-top" }, el("span", { text: `Downloading ${vlabel(v)}` }),
+      el("div", { class: "progress-top" }, el("span", { class: "progress-label", text: `${taskVerb(task)} ${vlabel(v)}` }),
         el("span", { class: "progress-text", text: progressText(task) })),
       el("div", { class: "progress-track" }, el("div", { class: "progress-fill" }))));
     main.push(button("Cancel", { iconName: "x", onclick: () => cancelTask(task) }));
@@ -354,6 +357,7 @@ function updateProgress() {
   for (const node of document.querySelectorAll("[data-task-id]")) {
     const task = ui.data.tasks.find((t) => t.id === node.dataset.taskId);
     if (!task) continue;
+    node.querySelector(".progress-label").textContent = `${taskVerb(task)} ${vlabel(task.version)}`;
     node.querySelector(".progress-text").textContent = progressText(task);
     const fill = node.querySelector(".progress-fill");
     const known = task.status === "downloading" && task.total;
@@ -440,11 +444,14 @@ async function poll() {
   try {
     const update = await api("poll", ui.lastEvent);
     setConnected(true);
-    Object.assign(ui.data, { installed: update.installed, tasks: update.tasks, running: update.running });
+    Object.assign(ui.data, { installed: update.installed, tasks: update.tasks, running: update.running, update: update.update });
     noticeTaskChanges();
     for (const event of update.events) handleEvent(event);
     render();
+    renderUpdate();
+    await finishUpdate();
     if (update.tasks.some((t) => ["queued", "downloading", "installing"].includes(t.status))) delay = 400;
+    else if (update.update?.status === "downloading") delay = 400;
     else if (document.hidden) delay = 5000;
   } catch {
     setConnected(false);
@@ -500,6 +507,99 @@ function setConnected(connected) {
   else document.querySelector('[data-toast-id="offline"]')?.remove();
 }
 
+/* ---------- Updating Toki Hub itself ---------- */
+
+function updateStatusText(update) {
+  switch (update.status) {
+    case "unsupported": return "Updates are not available for this computer.";
+    case "checking": return "Checking for updates…";
+    case "current": return `You have the newest version (${update.current}).`;
+    case "available": return `Version ${update.version} is available.`;
+    case "downloading": return `Downloading version ${update.version}…`;
+    case "ready": return `Version ${update.version} is ready to install.`;
+    case "error": return `Could not check for updates. ${update.error}`;
+    default: return `Toki Hub ${update.current || ""}`;
+  }
+}
+
+function renderUpdate() {
+  const update = ui.data.update || {};
+  const button = document.getElementById("btn-update");
+  const shown = ["available", "downloading", "ready"].includes(update.status);
+  button.hidden = !shown;
+  if (shown && !button.querySelector("svg")) button.prepend(icon("download"));
+  button.querySelector(".update-label").textContent =
+    update.status === "available" ? `Update to ${update.version}` : "Updating…";
+  document.getElementById("update-status").textContent = updateStatusText(update);
+  const working = update.status === "downloading" || update.status === "ready" || ui.updating;
+  document.getElementById("update-progress").hidden = !working;
+  document.getElementById("update-now").disabled = working;
+  if (working) {
+    const fill = document.getElementById("update-progress-fill");
+    const known = update.total > 0;
+    fill.classList.toggle("indeterminate", !known);
+    fill.style.width = known ? `${Math.min(100, (update.received / update.total) * 100)}%` : "";
+    document.getElementById("update-progress-text").textContent = update.status === "ready" ? "Installing…"
+      : known ? `${Math.floor((update.received / update.total) * 100)}% · ${formatBytes(update.received)} of ${formatBytes(update.total)}`
+      : `${formatBytes(update.received) || "0 B"} downloaded`;
+  }
+}
+
+async function checkForUpdates(manual = false) {
+  if (manual) document.getElementById("update-status").textContent = "Checking for updates…";
+  const update = manual
+    ? await attempt(() => api("check_for_updates"), "Could not check for updates")
+    : await api("check_for_updates").catch(() => null);
+  if (!update) return;
+  const before = ui.data.update?.status;
+  ui.data.update = update;
+  renderUpdate();
+  if (update.status === "available" && (manual || before !== "available")) Toki.say("updateAvailable", { v: update.version });
+  else if (manual && update.status === "current") Toki.say("updateCurrent", { v: update.current });
+}
+
+function openUpdate() {
+  const update = ui.data.update || {};
+  document.getElementById("update-title").textContent = `Toki Hub ${update.version}`;
+  document.getElementById("update-subtitle").textContent =
+    `You have version ${update.current}. Updating takes a few seconds; Toki Hub restarts by itself.`;
+  const notes = (update.notes || "").replace(/\*\*/g, "").trim();
+  document.getElementById("update-notes").replaceChildren(notes ? formatNotes(notes) : el("p", { class: "muted", text: "No release notes." }));
+  renderUpdate();
+  openDialog("update-dialog");
+}
+
+async function startUpdate() {
+  ui.updating = true;
+  renderUpdate();
+  const update = await attempt(() => api("download_update"), "Could not download the update");
+  if (!update) {
+    ui.updating = false;
+    renderUpdate();
+    return;
+  }
+  ui.data.update = update;
+  Toki.say("updateDownloading", { v: update.version });
+  refreshSoon(0);
+}
+
+/** Once an update the player asked for has downloaded, put it in place and restart. */
+async function finishUpdate() {
+  const update = ui.data.update || {};
+  if (!ui.updating) return;
+  if (update.status === "error") {
+    ui.updating = false;
+    renderUpdate();
+    toast({ kind: "error", title: "The update did not download", text: update.error, sticky: true });
+    Toki.say("error");
+  } else if (update.status === "ready") {
+    ui.updating = false;
+    Toki.say("updateInstalling");
+    const done = await attempt(() => api("apply_update"), "Could not install the update");
+    if (done === undefined) renderUpdate();
+  }
+}
+
 /* ---------- Toasts ---------- */
 
 function toast({ kind = "info", title, text, detail, action, sticky = false, id }) {
@@ -541,6 +641,7 @@ function openSettings() {
   document.getElementById("place-data").textContent = ui.data.places.data;
   document.getElementById("place-data").title = ui.data.places.data;
   document.getElementById("hub-version").textContent = `Toki Hub ${ui.data.hub_version}`;
+  renderUpdate();
   openDialog("settings-dialog");
 }
 
@@ -605,6 +706,9 @@ function wireUp() {
     node.addEventListener("click", () => attempt(() => api("open_place", node.dataset.openPlace), "Could not open the folder"));
   }
   document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshSoon(0); });
+  document.getElementById("btn-update").addEventListener("click", openUpdate);
+  document.getElementById("update-now").addEventListener("click", startUpdate);
+  document.getElementById("btn-check-updates").addEventListener("click", () => checkForUpdates(true));
 }
 
 async function start() {
@@ -616,10 +720,15 @@ async function start() {
     toast({ kind: "error", title: "Toki Hub is not responding", text: error.message, sticky: true });
     return;
   }
-  if (ui.data.problems.length) Toki.say("problems", { n: ui.data.problems.length });
+  if (ui.data.just_updated) Toki.say("updated", { v: ui.data.hub_version });
+  else if (ui.data.problems.length) Toki.say("problems", { n: ui.data.problems.length });
   else if (!ui.data.games.length) Toki.say("empty");
   else Toki.say("greet");
+  renderUpdate();
   refreshSoon(1500);
+  // Look for a new version of the hub shortly after start-up, then every six hours.
+  setTimeout(() => checkForUpdates(false), 4000);
+  setInterval(() => checkForUpdates(false), 6 * 60 * 60 * 1000);
 }
 
 start();

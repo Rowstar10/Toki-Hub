@@ -49,6 +49,9 @@ jobs:
       - name: Run the tests
         run: cargo test -p toki-hub-core
 
+      - name: Install Python and pygame for real, and run a game with them
+        run: cargo test -p toki-hub-core --test prerequisites_and_updates -- --ignored real_
+
       - name: Read the hub's version
         id: version
         shell: bash

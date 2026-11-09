@@ -78,7 +78,11 @@ impl Settings {
             "install_dir": self.get("install_dir"),
             "install_dir_effective": self.install_dir().to_string_lossy(),
             "python": self.get("python"),
-            "python_effective": self.python_command().join(" "),
+            "python_effective": if self.get("python").is_empty() {
+                "Installed by Toki Hub for each game".to_string()
+            } else {
+                self.get("python")
+            },
             "has_token": saved_token,
             "token_from_env": !saved_token && !self.github_token().is_empty(),
         })

@@ -141,7 +141,7 @@ fn checksums_are_enforced() {
     assert_eq!(install_and_wait(&hub, "game", "1.0")["status"], "done");
     let task = install_and_wait(&hub, "game", "2.0");
     assert_eq!(task["status"], "error");
-    assert!(task["error"].as_str().unwrap().contains("does not match the sha256"));
+    assert!(task["error"].as_str().unwrap().contains("does not match its sha256"));
     assert!(!hub.installer.version_dir("game", "2.0").exists());
     assert!(listing(&world.data().join("downloads")).is_empty(), "partial download left behind");
     let leftovers: Vec<String> = listing(&hub.settings.install_dir().join("game")).into_iter().filter(|n| n.starts_with('.')).collect();

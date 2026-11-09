@@ -4,12 +4,15 @@
 //! Python version (`../../tokihub`) and reads the same `catalog/` format.
 
 pub mod catalog;
+pub mod download;
 pub mod hub;
 pub mod installer;
 pub mod launcher;
 pub mod paths;
+pub mod runtime;
 pub mod settings;
 pub mod sources;
+pub mod updates;
 pub mod versions;
 
 pub use hub::{Hub, HubOptions};

@@ -27,7 +27,9 @@ LAUNCH_TYPES = ("executable", "python", "open")
 GAME_FIELDS = {"title", "tagline", "description", "developer", "tags", "icon", "cover", "accent", "versions"}
 VERSION_FIELDS = {"version", "date", "notes", "builds"}
 BUILD_FIELDS = {"platform", "source", "launch", "note"}
-LAUNCH_FIELDS = {"type", "path", "args"}
+# "python" and "packages" say what a python game needs. The Tauri version installs them; this version
+# checks them but uses the Python set in Settings.
+LAUNCH_FIELDS = {"type", "path", "args", "python", "packages"}
 
 GAME_ID = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 REPO = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
@@ -331,4 +333,18 @@ def _load_launch(launch, where, check):
     if not isinstance(args, list) or not all(isinstance(a, str) for a in args):
         check.report(where, "'args' must be a list of text")
         return None
-    return {"type": kind, "path": path.replace("\\", "/"), "args": args}
+    result = {"type": kind, "path": path.replace("\\", "/"), "args": args}
+    python = check.text(launch, "python", where)
+    if python and not re.match(r"^\d+(\.\d+){0,2}$", python):
+        check.report(where, "'python' must be a version like \"3.12\"")
+        return None
+    packages = launch.get("packages", [])
+    if not isinstance(packages, list) or not all(isinstance(p, str) and p.strip() and not p.strip().startswith("-")
+                                                 for p in packages):
+        check.report(where, "'packages' must be a list of package names, like [\"pygame==2.6.1\"]")
+        return None
+    if kind != "python" and (python or packages):
+        check.report(where, "'python' and 'packages' only apply to python games (ignored)")
+    elif python or packages:
+        result.update(python=python, packages=[p.strip() for p in packages])
+    return result

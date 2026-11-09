@@ -10,7 +10,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -19,10 +19,12 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
-use crate::catalog::{Build, Game, Version};
+use crate::catalog::{Build, Game, LaunchKind, Version};
+use crate::download::{fetch, hex};
 use crate::paths::{is_within, safe_name};
+use crate::runtime::{Runtimes, DEFAULT_PYTHON, ENV_DIR};
 use crate::settings::Settings;
-use crate::sources::{github_error, Download, LocalFiles, Plan, SourceResolver};
+use crate::sources::{Download, LocalFiles, Plan, SourceResolver};
 use crate::{fail, HubError, Result};
 
 pub const MARKER: &str = ".tokihub.json";
@@ -38,6 +40,8 @@ pub struct Task {
     pub title: String,
     pub version: String,
     status: Mutex<&'static str>,
+    /// What is happening now, while installing ("Installing pygame…").
+    stage: Mutex<String>,
     error: Mutex<String>,
     received: AtomicU64,
     total: AtomicU64,
@@ -53,6 +57,10 @@ impl Task {
         *self.status.lock().unwrap() = status;
     }
 
+    fn set_stage(&self, stage: String) {
+        *self.stage.lock().unwrap() = stage;
+    }
+
     pub fn active(&self) -> bool {
         matches!(self.status(), "queued" | "downloading" | "installing")
     }
@@ -60,7 +68,7 @@ impl Task {
     pub fn to_json(&self) -> Value {
         json!({
             "id": self.id, "game_id": self.game_id, "title": self.title, "version": self.version,
-            "status": self.status(), "error": *self.error.lock().unwrap(),
+            "status": self.status(), "stage": *self.stage.lock().unwrap(), "error": *self.error.lock().unwrap(),
             "received": self.received.load(Ordering::Relaxed), "total": self.total.load(Ordering::Relaxed),
         })
     }
@@ -75,7 +83,9 @@ const CANCELLED: &str = "\u{0}cancelled";
 pub struct Installer {
     settings: Arc<Settings>,
     resolver: Arc<SourceResolver>,
+    runtimes: Arc<Runtimes>,
     downloads_dir: PathBuf,
+    logs_dir: PathBuf,
     is_running: IsRunning,
     platform: String,
     tasks: Mutex<HashMap<(String, String), Arc<Task>>>,
@@ -86,14 +96,18 @@ impl Installer {
     pub fn new(
         settings: Arc<Settings>,
         resolver: Arc<SourceResolver>,
+        runtimes: Arc<Runtimes>,
         downloads_dir: PathBuf,
+        logs_dir: PathBuf,
         is_running: IsRunning,
         platform: &str,
     ) -> Installer {
         let installer = Installer {
             settings,
             resolver,
+            runtimes,
             downloads_dir,
+            logs_dir,
             is_running,
             platform: platform.to_string(),
             tasks: Mutex::new(HashMap::new()),
@@ -157,6 +171,7 @@ impl Installer {
                 title: game.title.clone(),
                 version: version.version.clone(),
                 status: Mutex::new("queued"),
+                stage: Mutex::new(String::new()),
                 error: Mutex::new(String::new()),
                 received: AtomicU64::new(0),
                 total: AtomicU64::new(0),
@@ -172,7 +187,10 @@ impl Installer {
             build,
             target: self.version_dir(&game.id, &version.version),
             downloads_dir: self.downloads_dir.clone(),
+            install_log: self.logs_dir.join(format!("{}-{}-install.log", game.id, safe_name(&version.version))),
+            settings: self.settings.clone(),
             resolver: self.resolver.clone(),
+            runtimes: self.runtimes.clone(),
             is_running: self.is_running.clone(),
         };
         std::thread::Builder::new()
@@ -240,7 +258,10 @@ struct Job {
     build: Build,
     target: PathBuf,
     downloads_dir: PathBuf,
+    install_log: PathBuf,
+    settings: Arc<Settings>,
     resolver: Arc<SourceResolver>,
+    runtimes: Arc<Runtimes>,
     is_running: IsRunning,
 }
 
@@ -297,6 +318,7 @@ impl Job {
                 self.build.launch.path
             ));
         }
+        self.install_prerequisites(staging)?;
         write_marker(staging, &self.game, &self.version, &self.build)?;
         if (self.is_running)(&self.game.id, &self.version.version) {
             return fail(format!(
@@ -312,72 +334,36 @@ impl Job {
     }
 
     fn download(&self, plan: &Download) -> Result<PathBuf> {
-        std::fs::create_dir_all(&self.downloads_dir)?;
         let part = self.downloads_dir.join(format!("{}-{}.part", self.task.id, plan.filename));
-        let result = self.receive(plan, &part);
-        if result.is_err() {
-            let _ = std::fs::remove_file(&part);
-        }
-        result.map(|_| part)
+        let task = &self.task;
+        let progress = |received: u64, total: u64| {
+            task.received.store(received, Ordering::Relaxed);
+            task.total.store(total, Ordering::Relaxed);
+        };
+        fetch(self.resolver.agent(), plan, &part, &progress, &|| task.check_cancel())?;
+        Ok(part)
     }
 
-    fn receive(&self, plan: &Download, part: &Path) -> Result<()> {
+    /// Games that run from Python source get their own Python with their packages, unless the
+    /// player chose their own Python in Settings.
+    fn install_prerequisites(&self, staging: &Path) -> Result<()> {
+        let launch = &self.build.launch;
+        if launch.kind != LaunchKind::Python || !self.settings.get("python").is_empty() {
+            return Ok(());
+        }
         let task = &self.task;
-        let mut request = self.resolver.agent().get(&plan.url);
-        for (key, value) in &plan.headers {
-            request = request.header(*key, value);
-        }
-        let response = request.call().map_err(|e| {
-            HubError(format!("Could not connect to download {}: {e}", plan.filename))
-        })?;
-        if !response.status().is_success() {
-            if !plan.github_what.is_empty() {
-                return Err(github_error(&response, &plan.github_what));
-            }
-            let status = response.status();
-            return fail(format!(
-                "Download failed: HTTP {} {} ({})",
-                status.as_u16(),
-                status.canonical_reason().unwrap_or(""),
-                plan.url
-            ));
-        }
-        let total = response
-            .headers()
-            .get("content-length")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.parse::<u64>().ok())
-            .unwrap_or(0);
-        task.total.store(total, Ordering::Relaxed);
-        let mut reader = response.into_body().into_reader();
-        let mut out = File::create(part)?;
-        let mut digest = Sha256::new();
-        let mut buffer = vec![0u8; CHUNK];
-        let mut received = 0u64;
-        loop {
-            task.check_cancel()?;
-            let count = reader
-                .read(&mut buffer)
-                .map_err(|e| HubError(format!("The download was interrupted: {e}")))?;
-            if count == 0 {
-                break;
-            }
-            out.write_all(&buffer[..count])?;
-            digest.update(&buffer[..count]);
-            received += count as u64;
-            task.received.store(received, Ordering::Relaxed);
-        }
-        out.flush()?;
-        if total > 0 && received < total {
-            return fail("The download ended early. Please try again.");
-        }
-        if !plan.sha256.is_empty() && hex(&digest.finalize()) != plan.sha256 {
-            return fail(format!(
-                "{} does not match the sha256 in the catalog, so it was not installed. The file may be damaged, or the catalog entry needs updating.",
-                plan.filename
-            ));
-        }
-        Ok(())
+        let python = if launch.python.is_empty() { DEFAULT_PYTHON } else { &launch.python };
+        task.set_stage(format!("Setting up Python {python}…"));
+        let uv = self.runtimes.ensure_uv(&|| task.check_cancel())?;
+        self.runtimes.create_env(
+            &uv,
+            &staging.join(ENV_DIR),
+            python,
+            &launch.packages,
+            &self.install_log,
+            &|stage| task.set_stage(stage),
+            &|| task.check_cancel(),
+        )
     }
 }
 
@@ -407,7 +393,7 @@ fn copy_tree(from: &Path, to: &Path, check_cancel: &dyn Fn() -> Result<()>) -> R
         check_cancel()?;
         let entry = entry?;
         let name = entry.file_name();
-        if [".git", "__pycache__", MARKER].iter().any(|skip| name == *skip) {
+        if [".git", "__pycache__", MARKER, ENV_DIR].iter().any(|skip| name == *skip) {
             continue;
         }
         let path = entry.path();
@@ -579,10 +565,6 @@ pub fn file_sha256(path: &Path) -> Result<String> {
         digest.update(&buffer[..count]);
     }
     Ok(hex(&digest.finalize()))
-}
-
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 /// Now, as "2026-11-09T15:05:18+00:00".

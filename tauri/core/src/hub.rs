@@ -10,8 +10,10 @@ use crate::catalog::{Build, Catalog, Game, IMAGE_TYPES};
 use crate::installer::Installer;
 use crate::launcher::{system_opener, Launcher, Opener};
 use crate::paths::{expand_home, is_within, which};
+use crate::runtime::{Runtimes, PYPI};
 use crate::settings::Settings;
-use crate::sources::{SourceResolver, GITHUB_API};
+use crate::sources::{http_agent, SourceResolver, GITHUB_API};
+use crate::updates::{UpdateSource, Updater};
 use crate::{fail, Result};
 
 pub struct HubOptions {
@@ -22,8 +24,14 @@ pub struct HubOptions {
     pub catalog_dirs: Vec<PathBuf>,
     pub data_dir: PathBuf,
     pub github_api: String,
+    /// Where uv (the Python installer) is downloaded from.
+    pub pypi: String,
     pub platform: String,
     pub opener: Opener,
+    /// Where updates to the hub come from; None turns updating off.
+    pub updates: Option<UpdateSource>,
+    /// This copy was just started by an update.
+    pub just_updated: bool,
 }
 
 impl HubOptions {
@@ -33,8 +41,11 @@ impl HubOptions {
             catalog_dirs,
             data_dir,
             github_api: GITHUB_API.to_string(),
+            pypi: PYPI.to_string(),
             platform: crate::paths::current_platform().to_string(),
             opener: system_opener(),
+            updates: None,
+            just_updated: false,
         }
     }
 }
@@ -48,6 +59,8 @@ pub struct Hub {
     pub settings: Arc<Settings>,
     pub launcher: Arc<Launcher>,
     pub installer: Installer,
+    pub updater: Arc<Updater>,
+    just_updated: bool,
     catalog: RwLock<Arc<Catalog>>,
 }
 
@@ -59,12 +72,23 @@ impl Hub {
         let resolver = Arc::new(SourceResolver::new(Box::new(move || token_settings.github_token()), &options.github_api));
         let launcher = Launcher::new(settings.clone(), data_dir.join("logs"), options.opener.clone());
         let watcher = launcher.clone();
+        let runtimes = Arc::new(Runtimes::new(&data_dir, &options.pypi, http_agent()));
         let installer = Installer::new(
             settings.clone(),
             resolver,
+            runtimes,
             data_dir.join("downloads"),
+            data_dir.join("logs"),
             Arc::new(move |game_id: &str, version: &str| watcher.is_running(game_id, version)),
             &options.platform,
+        );
+        let updater = Updater::new(
+            options.updates,
+            &options.hub_version,
+            &options.github_api,
+            settings.clone(),
+            http_agent(),
+            data_dir.join("downloads"),
         );
         let catalog = Catalog::load(&options.catalog_dirs);
         Hub {
@@ -76,6 +100,8 @@ impl Hub {
             settings,
             launcher,
             installer,
+            updater,
+            just_updated: options.just_updated,
             catalog: RwLock::new(Arc::new(catalog)),
         }
     }
@@ -103,6 +129,7 @@ impl Hub {
             "places": {"catalog": self.catalog_dir(), "data": self.data_dir},
             "native_window": true,
             "frozen": true,
+            "just_updated": self.just_updated,
         });
         if let (Value::Object(state), Value::Object(changing)) = (&mut state, self.poll(0)) {
             state.extend(changing);
@@ -132,6 +159,7 @@ impl Hub {
             "tasks": self.installer.tasks(),
             "running": self.launcher.running(),
             "events": self.launcher.events_since(after_event),
+            "update": self.updater.to_json(),
         })
     }
 
@@ -194,6 +222,22 @@ impl Hub {
         };
         std::fs::create_dir_all(&place)?;
         (self.opener)(&place)
+    }
+
+    // -- Updating the hub itself --
+
+    /// Look for a newer version of the hub (asks GitHub, so it takes a moment).
+    pub fn check_for_updates(&self) -> Value {
+        self.updater.check()
+    }
+
+    pub fn download_update(&self) -> Result<Value> {
+        self.updater.start_download()
+    }
+
+    /// The verified new exe, once downloaded. The app swaps it in and restarts.
+    pub fn update_file(&self) -> Option<PathBuf> {
+        self.updater.ready_file()
     }
 
     // -- Settings --

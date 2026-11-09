@@ -20,8 +20,8 @@
             "repo": "Rowstar10/Hu-Taong-v1.0",
             "ref": "db6da17c8519a61731f6cffb39da2e2cd2730935"
           },
-          "launch": { "type": "python", "path": "main.py" },
-          "note": "Runs from source: needs Python 3 with pygame (pip install pygame)."
+          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
+          "note": "Runs from source with Python 3.12 and pygame."
         }
       ]
     }
