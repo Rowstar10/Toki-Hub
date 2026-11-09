@@ -554,6 +554,9 @@ async function saveSettings(event) {
 
 function applyState(data) {
   ui.data = data;
+  for (const node of document.querySelectorAll("[data-mode]")) {
+    node.hidden = node.dataset.mode !== (data.frozen ? "exe" : "source");
+  }
   for (const task of data.tasks) ui.taskStatus[task.id] = task.status;
   for (const event of data.events) ui.lastEvent = Math.max(ui.lastEvent, event.id);
   if (!gameById(ui.gameId)) {

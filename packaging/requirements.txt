@@ -1,0 +1,3 @@
+# What it takes to build Toki Hub.exe (on Windows): pip install -r packaging/requirements.txt
+pyinstaller==6.22.3
+pywebview==6.2.1

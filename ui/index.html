@@ -23,10 +23,7 @@
   <header class="topbar">
     <div class="brand">
       <img class="brand-halo" src="img/halo.svg" alt="">
-      <div class="brand-text">
-        <span class="brand-name">Toki <em>Hub</em></span>
-        <span class="brand-sub">Game launcher &middot; C&amp;C call sign 04</span>
-      </div>
+      <span class="brand-name">Toki <em>Hub</em></span>
     </div>
     <div class="topbar-actions">
       <button id="btn-reload" class="icon-btn" type="button" title="Reload the catalog" aria-label="Reload the catalog"></button>
@@ -96,7 +93,7 @@
 
       <div class="field">
         <span class="field-label">Folders</span>
-        <div class="place-row"><span>Catalog</span><code id="place-catalog"></code>
+        <div class="place-row"><span>Your catalog</span><code id="place-catalog"></code>
           <button type="button" class="btn btn-ghost btn-small" data-open-place="catalog"><span>Open</span></button></div>
         <div class="place-row"><span>Data &amp; logs</span><code id="place-data"></code>
           <button type="button" class="btn btn-ghost btn-small" data-open-place="data"><span>Open</span></button></div>
@@ -114,7 +111,7 @@
     <h2 class="modal-title">Add a game</h2>
     <p>Every game is a folder in the <b>catalog</b> with a <code>game.json</code> that lists its versions and where
       to download each one. To add one:</p>
-    <ol class="steps">
+    <ol class="steps" data-mode="source">
       <li>Create the entry: <code>python main.py new-game "My Game"</code></li>
       <li>Add an <code>icon.png</code> and <code>cover.jpg</code> to its folder, and its versions to
         <code>game.json</code>. <code>catalog/README.md</code> has copy-paste examples for GitHub releases,
@@ -122,6 +119,14 @@
       <li>Check it: <code>python main.py check</code></li>
       <li>Press the reload button at the top right. The game appears in the library.</li>
     </ol>
+    <ol class="steps" data-mode="exe" hidden>
+      <li>Open your catalog folder (button below) and make a folder for the game, named like <code>my-game</code>.</li>
+      <li>Put a <code>game.json</code> in it, with an <code>icon.png</code> and <code>cover.jpg</code>.
+        <code>catalog/README.md</code> in the Toki-Hub repository explains the format, with copy-paste examples.</li>
+      <li>Press the reload button at the top right. Any mistakes show up as catalog problems in the library.</li>
+    </ol>
+    <p data-mode="exe" hidden>Games added to the <code>catalog</code> folder of the Toki-Hub repository are built into
+      the next Toki Hub release instead, for every copy of the hub.</p>
     <p>New versions of an existing game work the same way: add an entry to its <code>versions</code> list.</p>
     <div class="modal-actions">
       <button type="button" class="btn btn-ghost" data-open-place="catalog"><span>Open catalog folder</span></button>

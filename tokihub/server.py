@@ -12,6 +12,7 @@ import json
 import logging
 import mimetypes
 import secrets
+import time
 import urllib.parse
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -31,8 +32,10 @@ API_METHODS = frozenset({
 })
 MAX_BODY = 1024 * 1024
 TOKEN_PLACEHOLDER = "__TOKI_TOKEN__"
-CONTENT_TYPES = {".woff2": "font/woff2", ".svg": "image/svg+xml", ".js": "text/javascript",
-                 ".css": "text/css", ".webp": "image/webp"}
+# Spelled out because on Windows `mimetypes` reads the registry, which other programs can change.
+CONTENT_TYPES = {".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".woff2": "font/woff2",
+                 ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+                 ".gif": "image/gif", ".webp": "image/webp", ".ico": "image/x-icon", ".md": "text/plain"}
 CSP = ("default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; "
        "font-src 'self'; connect-src 'self'; frame-ancestors 'none'")
 
@@ -46,6 +49,7 @@ class HubServer(ThreadingHTTPServer):
         self.hub = hub
         self.ui_dir = Path(ui_dir).resolve()
         self.token = secrets.token_urlsafe(32)
+        self.last_api_call = None       # time.monotonic() of the page's latest call
 
     @property
     def url(self):
@@ -94,10 +98,12 @@ class Handler(BaseHTTPRequestHandler):
         if path in ("/", "/index.html"):
             return self._send_index()
         if path.startswith("/catalog/"):
-            folder = Path(self.server.hub.catalog_dir).resolve()
-            file = folder / path[len("/catalog/"):]
-            if file.suffix.lower() not in IMAGE_TYPES:
+            game_id, _, rest = path[len("/catalog/"):].partition("/")
+            game = self.server.hub.catalog.games.get(game_id)
+            if game is None or Path(rest).suffix.lower() not in IMAGE_TYPES:
                 return self._fail(HTTPStatus.NOT_FOUND)
+            folder = game.folder
+            file = folder / rest
         else:
             folder = self.server.ui_dir
             file = folder / path.lstrip("/")
@@ -141,6 +147,7 @@ class Handler(BaseHTTPRequestHandler):
         if not isinstance(args, list):
             return self._fail(HTTPStatus.BAD_REQUEST)
 
+        self.server.last_api_call = time.monotonic()
         try:
             result = getattr(self.server.hub, name)(*args)
         except HubError as e:

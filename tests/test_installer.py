@@ -52,6 +52,7 @@ class UrlInstallTests(HubTestCase):
         self.assertEqual(task["status"], "error")
         self.assertIn("does not match the sha256", task["error"])
         self.assertFalse(hub.installer.version_dir("game", "1.0").exists())
+        self.assertEqual(list((hub.data_dir / "downloads").iterdir()), [], "partial download left behind")
         game_folder = hub.settings.install_dir / "game"
         self.assertEqual(list(game_folder.iterdir()) if game_folder.exists() else [], [], "staging left behind")
 
@@ -109,6 +110,7 @@ class UrlInstallTests(HubTestCase):
                         message="cancel")
         self.assertEqual(done["id"], task["id"])
         self.assertFalse(hub.installer.version_dir("game", "1.0").exists())
+        self.assertEqual(list((hub.data_dir / "downloads").iterdir()), [], "partial download left behind")
 
     def test_reinstall_and_uninstall(self):
         self.web.file("/game.zip", zip_bytes(GAME_FILES))

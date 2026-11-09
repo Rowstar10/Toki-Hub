@@ -228,6 +228,16 @@ class Installer:
             raise HubError(f"Download failed: HTTP {e.code} {e.reason} ({plan.url})") from None
         except (urllib.error.URLError, OSError) as e:
             raise HubError(f"Could not connect to download {plan.filename}: {getattr(e, 'reason', e)}") from None
+        try:
+            return self._receive(response, part, plan, task)
+        except BaseException:
+            try:
+                part.unlink()
+            except OSError:
+                pass
+            raise
+
+    def _receive(self, response, part, plan, task):
         digest = hashlib.sha256()
         with response, open(part, "wb") as out:
             try:

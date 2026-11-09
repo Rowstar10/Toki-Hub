@@ -1,17 +1,20 @@
 """Where Toki Hub keeps things.
 
-- The *app folder* holds `catalog/` (the list of games). Running from source it is the repository
-  root; in a PyInstaller build it is the folder next to the .exe, so the catalog stays editable.
-- The *bundle folder* holds `ui/`. Running from source it is the same as the app folder.
+- The *bundle folder* holds `ui/` and the shipped `catalog/`. Running from source it is the
+  repository root; in Toki Hub.exe it is the folder PyInstaller unpacks the exe into.
 - The *data folder* holds settings, installed games, downloads and logs. It is per user, so
   updating or moving the hub never touches installed games. TOKIHUB_DATA_DIR overrides it.
+
+Catalogs: from source, the hub reads the repository's `catalog/`. Toki Hub.exe reads the catalog
+built into it and then `<data folder>/catalog`, where games can be added without rebuilding the
+exe (a game there replaces a built-in one with the same id).
 """
 import os
 import re
 import sys
 from pathlib import Path
 
-APP_NAME = "TokiHub"
+APP_NAME = "Toki Hub"
 
 
 def is_frozen():
@@ -30,8 +33,16 @@ def bundle_dir():
     return app_dir()
 
 
-def catalog_dir():
-    return app_dir() / "catalog"
+def catalog_dirs(data=None):
+    """The catalog folders to read, in order; later ones override earlier ones."""
+    if is_frozen():
+        return [bundle_dir() / "catalog", Path(data or data_dir()) / "catalog"]
+    return [app_dir() / "catalog"]
+
+
+def catalog_dir(data=None):
+    """The catalog folder people edit: where new games go and what "Open catalog folder" opens."""
+    return catalog_dirs(data)[-1]
 
 
 def ui_dir():

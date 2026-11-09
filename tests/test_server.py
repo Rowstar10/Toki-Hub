@@ -55,7 +55,8 @@ class ServerTests(HubTestCase):
 
     def test_nothing_else_is_served(self):
         for path in ("/catalog/hu-taong/game.json", "/../tokihub/hub.py", "/%2e%2e/tokihub/hub.py",
-                     "/catalog/../tokihub/hub.py", "/nope.html"):
+                     "/catalog/../tokihub/hub.py", "/catalog/hu-taong/../../ui/img/halo.svg",
+                     "/catalog/no-such-game/icon.png", "/nope.html"):
             with self.subTest(path=path):
                 self.assertEqual(self.request("GET", path)[0].status, 404)
 

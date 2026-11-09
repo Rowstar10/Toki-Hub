@@ -30,20 +30,19 @@ def main(argv=None):
     new_game.add_argument("--id", help="folder name / id (default: made from the title)")
     args = parser.parse_args(argv)
 
-    catalog_dir = args.catalog or paths.catalog_dir()
     if args.command == "check":
-        return check(catalog_dir)
+        return check(args.catalog or paths.catalog_dirs(args.data_dir))
     if args.command == "new-game":
-        return new_game_entry(catalog_dir, args.title, args.id)
+        return new_game_entry(args.catalog or paths.catalog_dir(args.data_dir), args.title, args.id)
 
     from tokihub.app import run
     return run(browser=args.browser, port=args.port, open_browser=not args.no_open,
-               data_dir=args.data_dir, catalog_dir=catalog_dir)
+               data_dir=args.data_dir, catalog_dir=args.catalog)
 
 
-def check(catalog_dir):
-    catalog = Catalog.load(catalog_dir)
-    print(f"Catalog: {catalog.folder}")
+def check(catalog_dirs):
+    catalog = Catalog.load(catalog_dirs)
+    print("Catalog: " + ", ".join(str(f) for f in catalog.folders if f.is_dir()))
     for game in catalog.games.values():
         print(f"\n  {game.title}  [{game.id}]")
         if not game.versions:

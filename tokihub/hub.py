@@ -18,15 +18,19 @@ from tokihub.sources import GITHUB_API, SourceResolver
 
 class Hub:
     def __init__(self, catalog_dir=None, data_dir=None, github_api=GITHUB_API, platform=None):
-        self.catalog_dir = Path(catalog_dir or paths.catalog_dir())
+        """`catalog_dir`: one catalog folder or a list of them (see paths.catalog_dirs)."""
         self.data_dir = Path(data_dir or paths.data_dir())
+        if catalog_dir is None:
+            catalog_dir = paths.catalog_dirs(self.data_dir)
+        self.catalog_dirs = [Path(catalog_dir)] if isinstance(catalog_dir, (str, Path)) else [Path(c) for c in catalog_dir]
+        self.catalog_dir = self.catalog_dirs[-1]     # the one people add games to
         self.platform = platform or paths.current_platform()
         self.settings = Settings(self.data_dir / "settings.json", self.data_dir)
         self.resolver = SourceResolver(lambda: self.settings.github_token, github_api)
         self.launcher = Launcher(self.settings, self.data_dir / "logs")
         self.installer = Installer(self.settings, self.resolver, self.data_dir / "downloads",
                                    self.launcher.is_running, self.platform)
-        self.catalog = Catalog.load(self.catalog_dir)
+        self.catalog = Catalog.load(self.catalog_dirs)
         self.window = None      # the pywebview window, when the hub runs in one
 
     # -- Reading state --
@@ -41,6 +45,7 @@ class Hub:
             "settings": self.settings.for_ui(),
             "places": {"catalog": str(self.catalog_dir), "data": str(self.data_dir)},
             "native_window": self.window is not None,
+            "frozen": paths.is_frozen(),
             **self.poll(),
         }
 
@@ -55,7 +60,7 @@ class Hub:
         }
 
     def reload(self):
-        self.catalog = Catalog.load(self.catalog_dir)
+        self.catalog = Catalog.load(self.catalog_dirs)
         return self.state()
 
     # -- Games --
@@ -109,7 +114,7 @@ class Hub:
         if "install_dir" in changes:
             folder = str(changes["install_dir"]).strip()
             if folder and not Path(folder).expanduser().is_absolute():
-                raise HubError("The install folder must be a full path, like C:\\Games\\TokiHub.")
+                raise HubError("The install folder must be a full path, like C:\\Games\\Toki Hub.")
             clean["install_dir"] = folder
         if "python" in changes:
             python = str(changes["python"]).strip()

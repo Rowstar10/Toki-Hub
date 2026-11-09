@@ -98,23 +98,27 @@ class Game:
 
 
 class Catalog:
-    def __init__(self, folder, games, problems):
-        self.folder = Path(folder)
+    def __init__(self, folders, games, problems):
+        self.folders = [Path(f) for f in folders]
         self.games = games          # id -> Game, ordered by title
         self.problems = problems    # list of str
 
     @classmethod
-    def load(cls, folder):
-        folder = Path(folder)
+    def load(cls, folders):
+        """Read one catalog folder, or a list of them. A game in a later folder replaces one with
+        the same id in an earlier folder. Folders that do not exist are skipped."""
+        folders = [Path(folders)] if isinstance(folders, (str, Path)) else [Path(f) for f in folders]
         games, problems = {}, []
-        if not folder.is_dir():
-            return cls(folder, {}, [f"Catalog folder not found: {folder}"])
-        for game_dir in sorted(p for p in folder.iterdir() if p.is_dir() and not p.name.startswith((".", "_"))):
-            game = _load_game(game_dir, problems)
-            if game:
-                games[game.id] = game
+        existing = [f for f in folders if f.is_dir()]
+        if not existing:
+            return cls(folders, {}, [f"Catalog folder not found: {folders[-1]}"])
+        for folder in existing:
+            for game_dir in sorted(p for p in folder.iterdir() if p.is_dir() and not p.name.startswith((".", "_"))):
+                game = _load_game(game_dir, problems)
+                if game:
+                    games[game.id] = game
         ordered = dict(sorted(games.items(), key=lambda item: item[1].title.lower()))
-        return cls(folder, ordered, problems)
+        return cls(folders, ordered, problems)
 
     def game(self, game_id):
         try:
