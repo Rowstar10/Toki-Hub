@@ -1,0 +1,2 @@
+# Optional: opens Toki Hub in its own window. Without it the hub opens in your web browser.
+pywebview>=5.0

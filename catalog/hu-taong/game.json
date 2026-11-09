@@ -1,0 +1,29 @@
+{
+  "title": "Hu Taong",
+  "tagline": "Pong, the Wangsheng Funeral Parlor way.",
+  "description": "A Hu Tao themed take on Pong. Play a friend on one keyboard (Red: W A S D, Blue: arrow keys) or face the AI on five difficulties from Baby to Insane, with adaptive AI, chaos mode, endless mode and win-by-two rules. Over thirty backgrounds, mood-matched music and match stats.",
+  "developer": "Rowstar10",
+  "tags": ["Arcade", "Pong", "1-2 players", "vs AI"],
+  "accent": "#d94a3a",
+  "icon": "icon.png",
+  "cover": "cover.jpg",
+  "versions": [
+    {
+      "version": "1.0",
+      "date": "2026-11-03",
+      "notes": "First release.\n- Local two-player and vs AI (Baby, Easy, Normal, Hard, Insane), with adaptive AI\n- Chaos mode, endless mode and win-by-two\n- Background gallery, mood-based music, display/audio/gameplay settings and match stats",
+      "builds": [
+        {
+          "platform": "any",
+          "source": {
+            "type": "github-archive",
+            "repo": "Rowstar10/Hu-Taong-v1.0",
+            "ref": "db6da17c8519a61731f6cffb39da2e2cd2730935"
+          },
+          "launch": { "type": "python", "path": "main.py" },
+          "note": "Runs from source: needs Python 3 with pygame (pip install pygame)."
+        }
+      ]
+    }
+  ]
+}
