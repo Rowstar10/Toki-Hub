@@ -68,7 +68,7 @@ def _run_window(hub, url):
     try:
         hub.window = webview.create_window("Toki Hub", url, **WINDOW)
         hub.window.events.shown += lambda *args: log.info("Window shown")
-        log.info("Opening the window (pywebview %s)", getattr(webview, "__version__", "?"))
+        log.info("Opening the window")
         webview.start()
         return True
     except Exception as e:      # no GUI backend available, etc.
