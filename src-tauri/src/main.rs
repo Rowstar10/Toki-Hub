@@ -28,7 +28,7 @@ use tauri_plugin_opener::OpenerExt;
 use toki_hub_core::catalog::Catalog;
 use toki_hub_core::sources::unquote;
 use toki_hub_core::updates::{remove_old_exe, swap_exe, UpdateSource};
-use toki_hub_core::{paths, Hub, HubError, HubOptions};
+use toki_hub_core::{migrate, paths, Hub, HubError, HubOptions};
 
 /// Where updates come from.
 const UPDATE_REPO: &str = "Rowstar10/Toki-Hub";
@@ -199,8 +199,21 @@ fn main() {
             _ => {}
         }
     }
-    let data_dir = data_dir.unwrap_or_else(paths::default_data_dir);
+    // After an update, wait for the old copy to close first: it may still have files open in the
+    // data folder, and the two must never share the window's browser engine.
+    let exe = std::env::current_exe().ok();
+    let old_exe_gone = match (&exe, just_updated) {
+        (Some(exe), true) => Some(remove_old_exe(exe, std::time::Duration::from_secs(15))),
+        _ => None,
+    };
+    let (data_dir, moved) = match data_dir {
+        Some(dir) => (dir, Vec::new()),
+        None => migrate::settle_data_dir(&paths::default_data_dir()),
+    };
     log::start(&data_dir.join("logs").join("hub.log"));
+    for line in moved {
+        log::line(&line);
+    }
     let catalog_dirs = catalog_dirs(&data_dir);
 
     if check {
@@ -213,16 +226,16 @@ fn main() {
         std::process::exit(if catalog.problems.is_empty() { 0 } else { 1 });
     }
 
-    log::line(&format!("Toki Hub {} starting (Tauri; data: {})", env!("CARGO_PKG_VERSION"), data_dir.display()));
-    if let Ok(exe) = std::env::current_exe() {
-        if just_updated {
-            // Wait for the old copy to close, so the two never share the window's browser engine.
-            let gone = remove_old_exe(&exe, std::time::Duration::from_secs(15));
-            log::line(if gone { "Finished updating" } else { "The old version is still closing" });
-        } else {
-            let exe = exe.clone();
-            std::thread::spawn(move || remove_old_exe(&exe, std::time::Duration::from_secs(30)));
+    log::line(&format!("Toki Hub {} starting (data: {})", env!("CARGO_PKG_VERSION"), data_dir.display()));
+    match old_exe_gone {
+        Some(gone) => log::line(if gone { "Finished updating" } else { "The old version is still closing" }),
+        None => {
+            if let Some(exe) = exe.clone() {
+                std::thread::spawn(move || remove_old_exe(&exe, std::time::Duration::from_secs(30)));
+            }
         }
+    }
+    if let Some(exe) = exe {
         let _ = RELAUNCH.set((exe, original_args.clone()));
     }
     let app_handle: Arc<OnceLock<AppHandle>> = Arc::default();

@@ -25,14 +25,14 @@ to download games and its own updates.
   catalog entry lists, installed just for that game: nothing system-wide, no admin rights.
 - **Updates itself.** When a new version is out, a gold **Update** button appears at the top.
   Settings › Updates has **Check now**.
-- Settings and installed games are in `%LOCALAPPDATA%\Toki Hub (Tauri)`.
+- Settings and installed games are in `%LOCALAPPDATA%\Toki Hub`.
 
 ## Adding games and versions
 
 Each game is a folder in [`catalog/`](catalog) with a `game.json`. [catalog/README.md](catalog/README.md)
 explains the format and has copy-paste examples. Games added there are built into the next release.
 
-To add a game without making a release, put its folder in `%LOCALAPPDATA%\Toki Hub (Tauri)\catalog` and
+To add a game without making a release, put its folder in `%LOCALAPPDATA%\Toki Hub\catalog` and
 press the reload button in the hub.
 
 ## Releasing a new version

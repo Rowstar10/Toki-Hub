@@ -2,11 +2,12 @@
 
 use std::path::{Component, Path, PathBuf};
 
-/// The data folder's name. It dates from when an older Python version of the hub used "Toki Hub";
-/// it stays the same so existing settings and installed games carry over.
-pub const APP_NAME: &str = "Toki Hub (Tauri)";
+/// The data folder's name.
+pub const APP_NAME: &str = "Toki Hub";
+/// Its name before version 0.2.2. See migrate.rs, which moves it.
+pub const OLD_APP_NAME: &str = "Toki Hub (Tauri)";
 
-/// Settings, installed games, downloads and logs: `%LOCALAPPDATA%\Toki Hub (Tauri)` on Windows.
+/// Settings, installed games, downloads and logs: `%LOCALAPPDATA%\Toki Hub` on Windows.
 pub fn default_data_dir() -> PathBuf {
     #[cfg(windows)]
     let base = std::env::var_os("LOCALAPPDATA")

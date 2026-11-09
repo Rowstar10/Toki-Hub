@@ -7,6 +7,7 @@ pub mod download;
 pub mod hub;
 pub mod installer;
 pub mod launcher;
+pub mod migrate;
 pub mod paths;
 pub mod runtime;
 pub mod settings;
