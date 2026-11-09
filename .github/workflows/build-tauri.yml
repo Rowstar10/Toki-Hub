@@ -1,0 +1,94 @@
+name: Build Toki Hub (Tauri)
+
+# Builds the Tauri version (tauri/) on Windows, runs its tests, tries the exe out, and keeps it as a
+# download on the run's page (the "Artifacts" section).
+#
+# On the default branch, a version that has no release yet (`version` in tauri/src-tauri/Cargo.toml)
+# is published as a pre-release tagged tauri-v<version>. Pre-releases never become the "latest"
+# release, so the Python version's download link is unaffected.
+
+on:
+  push:
+    paths: ["tauri/**", "catalog/**", ".github/workflows/build-tauri.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-tauri-${{ github.ref }}
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: tauri
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tauri/package-lock.json
+
+      # A real Python first on the PATH, for the tests that launch Python games.
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tauri
+
+      - name: Install the build tools
+        run: npm ci
+
+      - name: Run the tests
+        run: cargo test -p toki-hub-core
+
+      - name: Read the hub's version
+        id: version
+        shell: bash
+        run: echo "version=$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -1)" >> "$GITHUB_OUTPUT"
+
+      - name: Build the exe
+        run: npm run build
+
+      - name: Name the exe
+        shell: bash
+        run: mkdir -p dist && cp target/release/toki-hub.exe "dist/Toki Hub.exe"
+
+      - name: Try out the exe
+        shell: pwsh
+        run: ./smoke-test.ps1 -Exe "dist/Toki Hub.exe"
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: Toki Hub (Tauri)
+          path: tauri/dist/Toki Hub.exe
+          if-no-files-found: error
+
+      - name: Publish a pre-release for a new version
+        if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          tag="tauri-v$VERSION"
+          if gh release view "$tag" > /dev/null 2>&1; then
+            echo "Release $tag already exists. Bump version in tauri/src-tauri/Cargo.toml to publish a new one."
+            exit 0
+          fi
+          cat > notes.md <<EOF
+          The Tauri version of Toki Hub. Download **Toki Hub.exe** below and double-click it. Nothing to install.
+
+          It keeps its own settings and installed games (in %LOCALAPPDATA%\\Toki Hub (Tauri)), separate from the Python version.
+
+          Windows may say it "protected your PC", because the exe is not code-signed. Click **More info**, then **Run anyway**.
+          EOF
+          gh release create "$tag" "dist/Toki Hub.exe#Toki Hub.exe" --target "$GITHUB_SHA" --prerelease \
+            --title "Toki Hub $VERSION (Tauri)" --notes-file notes.md

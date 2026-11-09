@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Toki Hub</title>
+  <link rel="icon" href="img/halo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/hub.css">
+  <script src="js/toki.js" defer></script>
+  <script src="js/hub.js" defer></script>
+</head>
+<body>
+  <div class="sky" aria-hidden="true">
+    <div class="sky-dots"></div>
+    <div class="sky-stripes"></div>
+    <div class="cloud cloud-1"></div>
+    <div class="cloud cloud-2"></div>
+    <div class="cloud cloud-3"></div>
+    <img class="sky-halo" src="img/halo.svg" alt="">
+  </div>
+
+  <header class="topbar">
+    <div class="brand">
+      <img class="brand-halo" src="img/halo.svg" alt="">
+      <span class="brand-name">Toki <em>Hub</em></span>
+    </div>
+    <div class="topbar-actions">
+      <button id="btn-reload" class="icon-btn" type="button" title="Reload the catalog" aria-label="Reload the catalog"></button>
+      <button id="btn-settings" class="icon-btn" type="button" title="Settings" aria-label="Settings"></button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="library" aria-label="Game library">
+      <div class="section-title">Library <span id="lib-count" class="count"></span></div>
+      <button id="problems" class="problems" type="button" hidden></button>
+      <ul id="game-list" class="game-list"></ul>
+      <button id="btn-add-game" class="add-game" type="button"><span class="plus">+</span> Add a game</button>
+    </aside>
+    <main id="detail" class="detail" aria-live="polite"></main>
+  </div>
+
+  <footer class="dialogue">
+    <button class="portrait" id="toki-portrait" type="button" title="Talk to Toki" aria-label="Talk to Toki">
+      <img id="toki-art" class="toki-art" src="img/toki.png" alt="" hidden>
+      <img id="toki-emblem" class="toki-emblem" src="img/toki-emblem.svg" alt="">
+    </button>
+    <div class="dialogue-box" id="dialogue-box" role="status">
+      <div class="speaker">
+        <span class="speaker-name">Asuma Toki</span>
+        <span class="speaker-club">C&amp;C</span>
+      </div>
+      <p id="toki-line" class="line"></p>
+      <span class="next-mark" aria-hidden="true"></span>
+    </div>
+  </footer>
+
+  <div id="toasts" class="toasts" aria-live="assertive"></div>
+
+  <dialog id="settings-dialog" class="modal">
+    <form method="dialog" id="settings-form">
+      <h2 class="modal-title">Settings</h2>
+
+      <label class="field">
+        <span class="field-label">Install folder</span>
+        <span class="field-row">
+          <input id="set-install-dir" type="text" spellcheck="false" autocomplete="off">
+          <button type="button" class="btn btn-ghost" id="set-browse" hidden><span>Browse&hellip;</span></button>
+          <button type="button" class="btn btn-ghost" data-open-place="games"><span>Open</span></button>
+        </span>
+        <span class="field-help">Where downloaded games go, one folder per version. Leave empty for the default.
+          Versions already installed stay in the old folder if you change this.</span>
+      </label>
+
+      <label class="field">
+        <span class="field-label">Python (for games that run from source)</span>
+        <input id="set-python" type="text" spellcheck="false" autocomplete="off">
+        <span class="field-help">Leave empty to use the Python installed on this computer. It needs each game's
+          packages installed (Hu Taong needs <code>pip install pygame</code>).</span>
+      </label>
+
+      <label class="field">
+        <span class="field-label">GitHub token</span>
+        <span class="field-row">
+          <input id="set-token" type="password" spellcheck="false" autocomplete="off">
+          <button type="button" class="btn btn-ghost" id="set-clear-token" hidden><span>Remove</span></button>
+        </span>
+        <span class="field-help" id="token-help">Needed to download from private repositories. Create a fine-grained
+          token on GitHub (Settings &rsaquo; Developer settings) with read-only <b>Contents</b> access to your game
+          repositories. It is kept in settings.json on this computer and never shown again.</span>
+      </label>
+
+      <div class="field">
+        <span class="field-label">Folders</span>
+        <div class="place-row"><span>Your catalog</span><code id="place-catalog"></code>
+          <button type="button" class="btn btn-ghost btn-small" data-open-place="catalog"><span>Open</span></button></div>
+        <div class="place-row"><span>Data &amp; logs</span><code id="place-data"></code>
+          <button type="button" class="btn btn-ghost btn-small" data-open-place="data"><span>Open</span></button></div>
+      </div>
+
+      <div class="modal-actions">
+        <span class="modal-foot" id="hub-version"></span>
+        <button type="button" class="btn btn-ghost" id="set-cancel"><span>Cancel</span></button>
+        <button type="submit" class="btn btn-primary" id="set-save"><span>Save</span></button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="help-dialog" class="modal">
+    <h2 class="modal-title">Add a game</h2>
+    <p>Every game is a folder in the <b>catalog</b> with a <code>game.json</code> that lists its versions and where
+      to download each one. To add one:</p>
+    <ol class="steps" data-mode="source">
+      <li>Create the entry: <code>python main.py new-game "My Game"</code></li>
+      <li>Add an <code>icon.png</code> and <code>cover.jpg</code> to its folder, and its versions to
+        <code>game.json</code>. <code>catalog/README.md</code> has copy-paste examples for GitHub releases,
+        source code, direct links and files on this computer.</li>
+      <li>Check it: <code>python main.py check</code></li>
+      <li>Press the reload button at the top right. The game appears in the library.</li>
+    </ol>
+    <ol class="steps" data-mode="exe" hidden>
+      <li>Open your catalog folder (button below) and make a folder for the game, named like <code>my-game</code>.</li>
+      <li>Put a <code>game.json</code> in it, with an <code>icon.png</code> and <code>cover.jpg</code>.
+        <code>catalog/README.md</code> in the Toki-Hub repository explains the format, with copy-paste examples.</li>
+      <li>Press the reload button at the top right. Any mistakes show up as catalog problems in the library.</li>
+    </ol>
+    <p data-mode="exe" hidden>Games added to the <code>catalog</code> folder of the Toki-Hub repository are built into
+      the next Toki Hub release instead, for every copy of the hub.</p>
+    <p>New versions of an existing game work the same way: add an entry to its <code>versions</code> list.</p>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" data-open-place="catalog"><span>Open catalog folder</span></button>
+      <button type="button" class="btn btn-primary" data-close><span>Got it</span></button>
+    </div>
+  </dialog>
+
+  <dialog id="problems-dialog" class="modal">
+    <h2 class="modal-title">Catalog problems</h2>
+    <p>Toki Hub skipped or ignored these parts of the catalog. Fix them in the files below, then press reload.</p>
+    <ul id="problem-list" class="problem-list"></ul>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" data-open-place="catalog"><span>Open catalog folder</span></button>
+      <button type="button" class="btn btn-primary" data-close><span>Close</span></button>
+    </div>
+  </dialog>
+
+  <dialog id="confirm-dialog" class="modal modal-small">
+    <h2 class="modal-title" id="confirm-title"></h2>
+    <p id="confirm-text"></p>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" data-close><span>Cancel</span></button>
+      <button type="button" class="btn btn-danger" id="confirm-ok"><span>Uninstall</span></button>
+    </div>
+  </dialog>
+</body>
+</html>

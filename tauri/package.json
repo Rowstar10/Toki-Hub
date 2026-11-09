@@ -1,0 +1,13 @@
+{
+  "name": "toki-hub-tauri",
+  "private": true,
+  "description": "Toki Hub, built with Tauri. Build: npm ci && npm run build",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build --no-bundle"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.4"
+  }
+}
