@@ -9,6 +9,57 @@
   "cover": "cover.jpg",
   "versions": [
     {
+      "version": "1.3",
+      "date": "2026-11-10",
+      "notes": "Settings, assets, AI and power-up overhaul.\n- Online play (see ONLINE.md), with an optional server of your own (SERVER.md)\n- Replays, a jukebox and courts",
+      "builds": [
+        {
+          "platform": "any",
+          "source": {
+            "type": "github-archive",
+            "repo": "Rowstar10/Hu-Taong",
+            "ref": "dffdede4ce15ee9f27e3037c3932bbc18ab14584"
+          },
+          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
+          "note": "Runs from source with Python 3.12 and pygame."
+        }
+      ]
+    },
+    {
+      "version": "1.2",
+      "date": "2026-11-04",
+      "notes": "Power-ups (with their own settings screen), 5 more backgrounds, 58 music tracks and ambience.",
+      "builds": [
+        {
+          "platform": "any",
+          "source": {
+            "type": "github-archive",
+            "repo": "Rowstar10/Hu-Taong",
+            "ref": "7fd27833ef9fd2245845d01bd5a8ebc04c07b30d"
+          },
+          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
+          "note": "Runs from source with Python 3.12 and pygame."
+        }
+      ]
+    },
+    {
+      "version": "1.1",
+      "date": "2026-11-03",
+      "notes": "AI moved into its own module, and a new Interface settings screen.",
+      "builds": [
+        {
+          "platform": "any",
+          "source": {
+            "type": "github-archive",
+            "repo": "Rowstar10/Hu-Taong",
+            "ref": "36f3b59ba14e4a52bc98791496caed0e946006c9"
+          },
+          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
+          "note": "Runs from source with Python 3.12 and pygame."
+        }
+      ]
+    },
+    {
       "version": "1.0",
       "date": "2026-11-03",
       "notes": "First release.\n- Local two-player and vs AI (Baby, Easy, Normal, Hard, Insane), with adaptive AI\n- Chaos mode, endless mode and win-by-two\n- Background gallery, mood-based music, display/audio/gameplay settings and match stats",
@@ -17,11 +68,164 @@
           "platform": "any",
           "source": {
             "type": "github-archive",
-            "repo": "Rowstar10/Hu-Taong-v1.0",
-            "ref": "db6da17c8519a61731f6cffb39da2e2cd2730935"
+            "repo": "Rowstar10/Hu-Taong",
+            "ref": "92ef2ed1975b81e19538a6984647913a12275a50"
           },
           "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
           "note": "Runs from source with Python 3.12 and pygame."
+        }
+      ]
+    },
+    {
+      "version": "0.9",
+      "date": "2026-11-02",
+      "notes": "Match setup screen, match stats and a save file.",
+      "builds": [
+        {
+          "platform": "any",
+          "source": {
+            "type": "github-archive",
+            "repo": "Rowstar10/Hu-Taong",
+            "ref": "2f2ee006a95fb43b65c5e515a53f74dc129a89d7"
+          },
+          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
+          "note": "Runs from source with Python 3.12 and pygame."
+        }
+      ]
+    },
+    {
+      "version": "0.8",
+      "date": "2026-10-28",
+      "notes": "Reworked sound and font handling.",
+      "builds": [
+        {
+          "platform": "any",
+          "source": {
+            "type": "github-archive",
+            "repo": "Rowstar10/Hu-Taong",
+            "ref": "cc68a1e7639ec28fc7a5af9d0c8aa2b552cc8ad9"
+          },
+          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
+          "note": "Runs from source with Python 3.12 and pygame."
+        }
+      ]
+    },
+    {
+      "version": "0.7",
+      "date": "2026-03-20",
+      "notes": "16 music tracks, and win, lose and shutdown sounds.",
+      "builds": [
+        {
+          "platform": "any",
+          "source": {
+            "type": "github-archive",
+            "repo": "Rowstar10/Hu-Taong",
+            "ref": "0bc9140eea415b85ef0e1b7b7fb585e421d4fd8b"
+          },
+          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
+          "note": "Runs from source with Python 3.12 and pygame."
+        }
+      ]
+    },
+    {
+      "version": "0.6",
+      "date": "2026-03-14",
+      "notes": "Settings, fonts, music (8 tracks), sound effects and 12 backgrounds.",
+      "builds": [
+        {
+          "platform": "any",
+          "source": {
+            "type": "github-archive",
+            "repo": "Rowstar10/Hu-Taong",
+            "ref": "6a2d5f25ce03aac382329a4b564808fb87d0719f"
+          },
+          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
+          "note": "Runs from source with Python 3.12 and pygame."
+        }
+      ]
+    },
+    {
+      "version": "0.5",
+      "date": "2026-02-25",
+      "notes": "Rebuilt in Pygame.",
+      "builds": [
+        {
+          "platform": "any",
+          "source": {
+            "type": "github-archive",
+            "repo": "Rowstar10/Hu-Taong",
+            "ref": "fe9a7569792e725f288a3df3aae758188d03e4cd"
+          },
+          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
+          "note": "Runs from source with Python 3.12 and pygame."
+        }
+      ]
+    },
+    {
+      "version": "0.4",
+      "date": "2026-02-16",
+      "notes": "The last Tkinter version, with drawing moved into its own renderer.",
+      "builds": [
+        {
+          "platform": "any",
+          "source": {
+            "type": "github-archive",
+            "repo": "Rowstar10/Hu-Taong",
+            "ref": "bf83b2fc74580e22c0c92805d550563a5f009811"
+          },
+          "launch": { "type": "python", "path": "main.py", "python": "3.12" },
+          "note": "Runs from source with Python 3.12 (Tkinter)."
+        }
+      ]
+    },
+    {
+      "version": "0.3",
+      "date": "2026-02-15",
+      "notes": "Tkinter, split into modules (app, game, objects).",
+      "builds": [
+        {
+          "platform": "any",
+          "source": {
+            "type": "github-archive",
+            "repo": "Rowstar10/Hu-Taong",
+            "ref": "d4c0d3965cd66fde6c1d841ebd0f976b35e75e27"
+          },
+          "launch": { "type": "python", "path": "main.py", "python": "3.12" },
+          "note": "Runs from source with Python 3.12 (Tkinter)."
+        }
+      ]
+    },
+    {
+      "version": "0.2",
+      "date": "2026-02-15",
+      "notes": "Tkinter, still a single file, with small changes from 0.1.",
+      "builds": [
+        {
+          "platform": "any",
+          "source": {
+            "type": "github-archive",
+            "repo": "Rowstar10/Hu-Taong",
+            "ref": "062e3747220b2dfa1ad0382143d7dafd69255a21"
+          },
+          "launch": { "type": "python", "path": "HuTaong_Tkinter_v0.2.py", "python": "3.12" },
+          "note": "Runs from source with Python 3.12 (Tkinter)."
+        }
+      ]
+    },
+    {
+      "version": "0.1",
+      "date": "2026-02-15",
+      "notes": "The first version: a single-file Tkinter game.",
+      "builds": [
+        {
+          "platform": "any",
+          "source": {
+            "type": "github-archive",
+            "repo": "Rowstar10/Hu-Taong",
+            "ref": "22ab0197154ea5ae0e843682db096408ca886395"
+          },
+          "launch": { "type": "python", "path": "HuTaong_Tkinter_v0.1.py", "python": "3.12" },
+          "note": "Runs from source with Python 3.12 (Tkinter)."
         }
       ]
     }
