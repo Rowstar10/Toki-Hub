@@ -19,7 +19,7 @@
           "source": {
             "type": "github-archive",
             "repo": "Rowstar10/Hu-Taong",
-            "ref": "c578cec1b894217fe4c7fb0f4e36f57c4cecd85f"
+            "ref": "aa7440228478d6f7d0b19e3dfcc9797c5f160b1a"
           },
           "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
           "note": "Runs from source with Python 3.12 and pygame."
