@@ -10,6 +10,23 @@
   "changelog": { "repo": "Rowstar10/Hu-Taong", "path": "CHANGELOG.md" },
   "versions": [
     {
+      "version": "1.4",
+      "date": "2026-11-10",
+      "notes": "Fixes for hits off a paddle's ends, and for a friend leaving an online match.",
+      "builds": [
+        {
+          "platform": "any",
+          "source": {
+            "type": "github-archive",
+            "repo": "Rowstar10/Hu-Taong",
+            "ref": "c578cec1b894217fe4c7fb0f4e36f57c4cecd85f"
+          },
+          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
+          "note": "Runs from source with Python 3.12 and pygame."
+        }
+      ]
+    },
+    {
       "version": "1.3",
       "date": "2026-11-10",
       "notes": "Online play, replays, courts and twelve new power-ups, with an overhaul of settings, assets and the AI.",
