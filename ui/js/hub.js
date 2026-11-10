@@ -27,13 +27,14 @@ const ui = {
   renderKey: "",
   connected: true,
   pollTimer: null,
+  changelogs: {},           // game id -> "loading", then {versions, from, error} from the hub
 };
 
 /* ---------- Talking to the hub ---------- */
 
 // Each command's argument names, in the order the calls below pass them (see src-tauri/src/main.rs).
 const COMMAND_ARGS = {
-  state: [], poll: ["afterEvent"], reload: [],
+  state: [], poll: ["afterEvent"], reload: [], changelog: ["gameId"],
   install: ["gameId", "version"], cancel: ["taskId"], uninstall: ["gameId", "version"],
   launch: ["gameId", "version"], stop: ["gameId", "version"],
   open_folder: ["gameId", "version"], open_log: ["gameId", "version"], open_place: ["which"],
@@ -222,6 +223,7 @@ function renderDetail() {
     return;
   }
   const version = selectedVersion(game);
+  if (game.changelog) loadChangelog(game.id);
   const scroll = detail.scrollTop;
   detail.replaceChildren(
     el("section", { class: "hero" },
@@ -236,7 +238,7 @@ function renderDetail() {
     el("section", { class: "panel action-bar" }, actionBar(game, version)),
     el("div", { class: "columns" },
       el("div", { class: "stack" },
-        version ? notesPanel(version) : null,
+        version ? notesPanel(game, version) : null,
         el("section", { class: "panel" },
           el("h2", { class: "section-title", text: "About" }),
           el("p", { class: "about-text", text: game.description || "No description yet." }),
@@ -304,12 +306,33 @@ function actionBar(game, version) {
   return bar;
 }
 
-function notesPanel(version) {
+function notesPanel(game, version) {
+  const notes = versionNotes(game, version);
   return el("section", { class: "panel notes" },
     el("div", { class: "notes-head" },
       el("h2", { class: "section-title", text: `What's in ${vlabel(version.version)}` }),
       version.date ? el("span", { class: "notes-date", text: formatDate(version.date) }) : null),
-    version.notes ? formatNotes(version.notes) : el("p", { class: "muted", text: "No release notes for this version." }));
+    notes ? formatNotes(notes) : el("p", { class: "muted", text: "No release notes for this version." }));
+}
+
+// The version's section of the game's changelog once it has arrived, otherwise the catalog's notes.
+function versionNotes(game, version) {
+  const changelog = ui.changelogs[game.id];
+  return (typeof changelog === "object" && changelog.versions[version.version]) || version.notes;
+}
+
+// Fetch a game's changelog once (the hub keeps a copy for offline use), then redraw its page.
+async function loadChangelog(gameId) {
+  if (ui.changelogs[gameId]) return;
+  ui.changelogs[gameId] = "loading";
+  let changelog;
+  try {
+    changelog = await api("changelog", gameId);
+  } catch (error) {
+    changelog = { versions: {}, from: "none", error: error.message };
+  }
+  ui.changelogs[gameId] = changelog;
+  if (ui.gameId === gameId) renderDetail();
 }
 
 function formatNotes(text) {
@@ -318,16 +341,25 @@ function formatNotes(text) {
   for (const raw of text.split("\n")) {
     const line = raw.trim();
     if (!line) { list = null; continue; }
+    const heading = line.match(/^#{1,6}\s+(.*)$/);
     const bullet = line.match(/^[-*•]\s+(.*)$/);
-    if (bullet) {
+    if (heading) {
+      list = null;
+      fragment.append(el("h3", { class: "notes-heading", text: plainText(heading[1]) }));
+    } else if (bullet) {
       if (!list) { list = el("ul"); fragment.append(list); }
-      list.append(el("li", { text: bullet[1] }));
+      list.append(el("li", { text: plainText(bullet[1]) }));
     } else {
       list = null;
-      fragment.append(el("p", { text: line }));
+      fragment.append(el("p", { text: plainText(line) }));
     }
   }
   return fragment;
+}
+
+// Markdown's inline marks, dropped: **bold**, `code`, and [links](address) keep just their text.
+function plainText(text) {
+  return text.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/\*\*|__|`/g, "");
 }
 
 function versionsPanel(game, selected) {
@@ -427,6 +459,7 @@ async function reloadCatalog() {
   btn.classList.add("spinning");
   const data = await attempt(() => api("reload"), "Could not reload the catalog");
   if (!data) return;
+  ui.changelogs = {};
   applyState(data);
   if (data.problems.length) Toki.say("problems", { n: data.problems.length });
   else Toki.say("reload", { n: data.games.length });

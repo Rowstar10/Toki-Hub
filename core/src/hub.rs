@@ -6,6 +6,7 @@ use std::sync::{Arc, RwLock};
 use serde_json::{json, Map, Value};
 
 use crate::catalog::{Build, Catalog, Game, IMAGE_TYPES};
+use crate::changelog::Changelogs;
 use crate::installer::Installer;
 use crate::launcher::{system_opener, Launcher, Opener};
 use crate::paths::{expand_home, is_within, which};
@@ -61,6 +62,8 @@ pub struct Hub {
     pub updater: Arc<Updater>,
     just_updated: bool,
     catalog: RwLock<Arc<Catalog>>,
+    resolver: Arc<SourceResolver>,
+    changelogs: Changelogs,
 }
 
 impl Hub {
@@ -74,7 +77,7 @@ impl Hub {
         let runtimes = Arc::new(Runtimes::new(&data_dir, &options.pypi, http_agent()));
         let installer = Installer::new(
             settings.clone(),
-            resolver,
+            resolver.clone(),
             runtimes,
             data_dir.join("downloads"),
             data_dir.join("logs"),
@@ -90,6 +93,7 @@ impl Hub {
             data_dir.join("downloads"),
         );
         let catalog = Catalog::load(&options.catalog_dirs);
+        let changelogs = Changelogs::new(data_dir.join("cache").join("changelogs"));
         Hub {
             hub_version: options.hub_version,
             catalog_dirs: options.catalog_dirs,
@@ -102,6 +106,8 @@ impl Hub {
             updater,
             just_updated: options.just_updated,
             catalog: RwLock::new(Arc::new(catalog)),
+            resolver,
+            changelogs,
         }
     }
 
@@ -163,10 +169,17 @@ impl Hub {
 
     pub fn reload(&self) -> Value {
         *self.catalog.write().unwrap() = Arc::new(Catalog::load(&self.catalog_dirs));
+        self.changelogs.forget();
         self.state()
     }
 
     // -- Games --
+
+    /// The game's changelog, split by version (see changelog.rs). Fetched on the first call.
+    pub fn changelog(&self, game_id: &str) -> Result<Value> {
+        let catalog = self.catalog();
+        Ok(self.changelogs.get(catalog.game(game_id)?, &self.resolver))
+    }
 
     pub fn install(&self, game_id: &str, version: &str) -> Result<Value> {
         let catalog = self.catalog();
@@ -306,6 +319,7 @@ impl Hub {
             "accent": game.accent,
             "icon": image(&game.icon),
             "cover": image(&game.cover),
+            "changelog": game.changelog.is_some(),
             "versions": game.versions.iter().map(|v| {
                 let mut platforms: Vec<&str> = v.builds.iter().map(|b| b.platform.as_str()).collect();
                 platforms.sort();

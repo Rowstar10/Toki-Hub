@@ -231,6 +231,8 @@ code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-siz
 .notes-head .section-title { margin: 0; }
 .notes-date { font-size: 13px; font-weight: 700; color: var(--ink-faint); }
 .notes p { margin: 0 0 8px; }
+.notes .notes-heading { margin: 14px 0 4px; font-size: 12px; font-weight: 800; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--sky-700); }
 .notes ul { margin: 0 0 8px; padding-left: 20px; }
 .notes li { margin: 2px 0; }
 .notes li::marker { color: var(--sky-500); }

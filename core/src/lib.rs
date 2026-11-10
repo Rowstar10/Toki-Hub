@@ -3,6 +3,7 @@
 //! There is no UI in here; the Tauri app in `../src-tauri` shows it.
 
 pub mod catalog;
+pub mod changelog;
 pub mod download;
 pub mod hub;
 pub mod installer;

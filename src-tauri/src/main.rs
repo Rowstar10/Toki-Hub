@@ -76,6 +76,11 @@ async fn reload(hub: HubState<'_>) -> Answer<Value> {
 }
 
 #[tauri::command]
+async fn changelog(hub: HubState<'_>, game_id: String) -> Answer<Value> {
+    work(&hub, move |hub| hub.changelog(&game_id)).await
+}
+
+#[tauri::command]
 async fn install(hub: HubState<'_>, game_id: String, version: String) -> Answer<Value> {
     work(&hub, move |hub| hub.install(&game_id, &version)).await
 }
@@ -277,7 +282,7 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            state, poll, reload, install, cancel, uninstall, launch, stop,
+            state, poll, reload, changelog, install, cancel, uninstall, launch, stop,
             open_folder, open_log, open_place, save_settings, clear_token, pick_folder,
             check_for_updates, download_update, apply_update
         ])

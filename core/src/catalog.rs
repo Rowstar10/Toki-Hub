@@ -16,10 +16,20 @@ pub const PLATFORMS: [&str; 4] = ["windows", "macos", "linux", "any"];
 pub const IMAGE_TYPES: [&str; 6] = ["png", "jpg", "jpeg", "webp", "gif", "svg"];
 const SOURCE_TYPES: [&str; 4] = ["url", "github-release", "github-archive", "local"];
 const LAUNCH_TYPES: [&str; 3] = ["executable", "python", "open"];
-const GAME_FIELDS: [&str; 9] = ["title", "tagline", "description", "developer", "tags", "icon", "cover", "accent", "versions"];
+const GAME_FIELDS: [&str; 10] =
+    ["title", "tagline", "description", "developer", "tags", "icon", "cover", "accent", "changelog", "versions"];
 const VERSION_FIELDS: [&str; 4] = ["version", "date", "notes", "builds"];
 const BUILD_FIELDS: [&str; 4] = ["platform", "source", "launch", "note"];
 const LAUNCH_FIELDS: [&str; 5] = ["type", "path", "args", "python", "packages"];
+const CHANGELOG_FIELDS: [&str; 4] = ["repo", "path", "ref", "url"];
+
+/// Where a game's changelog is: a Markdown file with a `## <version>` heading for each version.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Changelog {
+    /// A file in a GitHub repository; an empty `reference` means the default branch.
+    Github { repo: String, path: String, reference: String },
+    Url { url: String },
+}
 
 /// Where to download a build from.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -131,6 +141,7 @@ pub struct Game {
     pub accent: String,
     pub icon: Option<PathBuf>,
     pub cover: Option<PathBuf>,
+    pub changelog: Option<Changelog>,
     /// Newest first.
     pub versions: Vec<Version>,
 }
@@ -319,6 +330,7 @@ fn load_game(dir: &Path, problems: &mut Vec<String>) -> Option<Game> {
         accent,
         icon: image(&data, "icon", dir, &mut check),
         cover: image(&data, "cover", dir, &mut check),
+        changelog: load_changelog(&data, &mut check),
         title,
         versions: Vec::new(),
     };
@@ -364,6 +376,41 @@ fn image(data: &Map<String, Value>, key: &str, dir: &Path, check: &mut Checker) 
         return None;
     }
     Some(path)
+}
+
+fn load_changelog(data: &Map<String, Value>, check: &mut Checker) -> Option<Changelog> {
+    let place = "changelog";
+    let Value::Object(fields) = data.get("changelog")? else {
+        check.report("", "'changelog' must be an object like {\"repo\": \"owner/name\", \"path\": \"CHANGELOG.md\"}");
+        return None;
+    };
+    check.unknown(fields, &CHANGELOG_FIELDS, place);
+    let repo = check.text(fields, "repo", place, false);
+    let url = check.text(fields, "url", place, false);
+    match (repo.is_empty(), url.is_empty()) {
+        (false, true) if is_repo(&repo) => {
+            let path = check.text(fields, "path", place, false);
+            let path = if path.is_empty() { "CHANGELOG.md".to_string() } else { path.trim_matches('/').to_string() };
+            Some(Changelog::Github { repo, path, reference: check.text(fields, "ref", place, false) })
+        }
+        (false, true) => {
+            check.report(place, "'repo' must look like \"owner/name\"");
+            None
+        }
+        (true, false) if url.starts_with("https://") || url.starts_with("http://") => Some(Changelog::Url { url }),
+        (true, false) => {
+            check.report(place, "'url' must be a web address starting with https://");
+            None
+        }
+        (false, false) => {
+            check.report(place, "give 'repo' or 'url', not both");
+            None
+        }
+        (true, true) => {
+            check.report(place, "needs 'repo' (a GitHub repository) or 'url'");
+            None
+        }
+    }
 }
 
 fn load_version(entry: &Value, place: &str, check: &mut Checker) -> Option<Version> {

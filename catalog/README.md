@@ -36,6 +36,37 @@ library. GitHub also checks the whole catalog on every push (the build fails if 
 
 Only `title` is required. `accent` is a colour for the stripe beside the game's title.
 
+## Changelog
+
+A game can point to a changelog kept with its code, and each version's page shows that version's
+part of it instead of its `notes`:
+
+```json
+"changelog": { "repo": "Rowstar10/Hu-Taong", "path": "CHANGELOG.md" }
+```
+
+`path` defaults to `CHANGELOG.md`, and `ref` (a branch, tag or commit) to the repository's default
+branch. Instead of `repo`, `url` can be any direct link to the file. Private repositories need the
+GitHub token in Settings, like downloads do.
+
+The changelog is Markdown with a `## ` heading for each version; the heading's first word is the
+version (`## 1.3 — 2026-11-10`, `## v1.3` and `## [1.3] - 2026-11-10` all work). Under it, `### `
+lines become small headings and lines starting with `- ` become bullet points:
+
+```markdown
+## 1.3 — 2026-11-10
+
+One line saying what the version is about.
+
+### Added
+- Online play
+```
+
+The hub fetches it once per session (again when you press reload) and keeps the last copy, so it
+still shows offline. Editing the file on GitHub is enough: no new hub release is needed. A version
+missing from the changelog, or a changelog that can't be fetched and was never saved, falls back
+to the version's `notes`, so keep a one-line `notes` for each version as well.
+
 ## Versions and builds
 
 ```json

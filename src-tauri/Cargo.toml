@@ -1,6 +1,6 @@
 [package]
 name = "toki-hub"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2021"
 description = "Toki Hub: a launcher for all of Rowstar10's games and every version of them."
 publish = false

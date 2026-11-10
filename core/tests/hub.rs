@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use common::*;
 use serde_json::json;
 use sha2::{Digest, Sha256};
-use toki_hub_core::catalog::{Catalog, LaunchKind, Source};
+use toki_hub_core::catalog::{Catalog, Changelog, LaunchKind, Source};
 use toki_hub_core::installer::MARKER;
 
 fn url_source(world: &World, path: &str) -> serde_json::Value {
@@ -26,6 +26,110 @@ fn shipped_catalog_has_no_problems() {
     let build = hu_taong.version("1.0").unwrap().build_for("windows").unwrap();
     assert!(matches!(build.source, Source::GithubArchive { .. }));
     assert_eq!((build.launch.kind, build.launch.path.as_str()), (LaunchKind::Python, "main.py"));
+    assert_eq!(
+        hu_taong.changelog,
+        Some(Changelog::Github { repo: "Rowstar10/Hu-Taong".into(), path: "CHANGELOG.md".into(), reference: String::new() })
+    );
+}
+
+// ---------- Changelogs ----------
+
+const CHANGELOG: &str = "# Changelog\n\nEvery version.\n\n## 1.1 — 2026-11-03\n\nSecond.\n\n### Added\n- Two\n\n\
+                         ## 1.0 — 2026-11-02\n\nFirst.\n";
+
+fn game_with_changelog(world: &World, changelog: serde_json::Value) {
+    let mut game = game_with(vec![version_with("1.0", url_source(world, "/game.zip"))]);
+    game["changelog"] = changelog;
+    write_game(&world.catalog(), "game", &game);
+}
+
+#[test]
+fn changelogs_come_from_github_and_are_kept_for_offline_use() {
+    let world = World::new();
+    game_with_changelog(&world, json!({"repo": "someone/game", "path": "docs/CHANGELOG.md", "ref": "main"}));
+    let path = "/repos/someone/game/contents/docs/CHANGELOG.md?ref=main";
+    world.web.file(path, CHANGELOG.as_bytes().to_vec());
+    let hub = world.hub();
+    assert_eq!(hub.state()["games"][0]["changelog"], true);
+
+    let log = hub.changelog("game").unwrap();
+    assert_eq!(log["from"], "online");
+    assert_eq!(log["versions"]["1.1"], "Second.\n\n### Added\n- Two");
+    assert_eq!(log["versions"]["1.0"], "First.");
+    assert_eq!(world.web.headers_for(path)[0]["accept"], "application/vnd.github.raw+json");
+
+    // Asked for once per session...
+    hub.changelog("game").unwrap();
+    assert_eq!(world.web.headers_for(path).len(), 1);
+
+    // ...and again after a reload; when GitHub fails, the copy kept last time is used.
+    world.web.route(path, || Reply::Body(500, vec![], vec![]));
+    hub.reload();
+    let log = hub.changelog("game").unwrap();
+    assert_eq!(world.web.headers_for(path).len(), 2);
+    assert_eq!(log["from"], "saved");
+    assert_eq!(log["versions"]["1.1"], "Second.\n\n### Added\n- Two");
+    assert!(log["error"].as_str().unwrap().contains("HTTP 500"), "{log}");
+}
+
+#[test]
+fn changelogs_from_the_default_branch_or_a_web_address() {
+    let world = World::new();
+    game_with_changelog(&world, json!({"repo": "someone/game"}));
+    world.web.file("/repos/someone/game/contents/CHANGELOG.md", CHANGELOG.as_bytes().to_vec());
+    assert_eq!(world.hub().changelog("game").unwrap()["versions"]["1.0"], "First.");
+
+    let world = World::new();
+    game_with_changelog(&world, json!({"url": format!("{}/notes.md", world.web.base)}));
+    world.web.file("/notes.md", CHANGELOG.as_bytes().to_vec());
+    let log = world.hub().changelog("game").unwrap();
+    assert_eq!((log["from"].as_str(), log["versions"]["1.1"].as_str()), (Some("online"), Some("Second.\n\n### Added\n- Two")));
+    assert!(world.web.headers_for("/notes.md")[0].get("authorization").is_none());
+}
+
+#[test]
+fn games_without_a_changelog_or_one_that_never_arrived() {
+    let world = World::new();
+    game_with_changelog(&world, json!({"repo": "someone/game"}));
+    let log = world.hub().changelog("game").unwrap();
+    assert_eq!((log["from"].as_str(), log["versions"].as_object().unwrap().len()), (Some("none"), 0));
+    assert!(log["error"].as_str().unwrap().contains("could not find"), "{log}");
+
+    let world = World::new();
+    write_game(&world.catalog(), "plain", &game_with(vec![version_with("1.0", url_source(&world, "/game.zip"))]));
+    let hub = world.hub();
+    assert_eq!(hub.state()["games"][0]["changelog"], false);
+    assert_eq!(hub.changelog("plain").unwrap()["from"], "none");
+    assert!(hub.changelog("missing").is_err());
+}
+
+#[test]
+fn bad_changelog_entries_are_reported() {
+    let world = World::new();
+    for (id, changelog) in [
+        ("both", json!({"repo": "a/b", "url": "https://example.com/c.md"})),
+        ("neither", json!({"path": "CHANGELOG.md"})),
+        ("bad-repo", json!({"repo": "not a repo"})),
+        ("bad-url", json!({"url": "ftp://example.com/c.md"})),
+        ("not-object", json!("CHANGELOG.md")),
+        ("typo", json!({"repo": "a/b", "brnach": "main"})),
+    ] {
+        let mut game = game_with(vec![]);
+        game["changelog"] = changelog;
+        write_game(&world.catalog(), id, &game);
+    }
+    let catalog = Catalog::load(&[world.catalog()]);
+    let problems = catalog.problems.join("\n");
+    assert!(problems.contains("both/game.json: changelog: give 'repo' or 'url', not both"), "{problems}");
+    assert!(problems.contains("neither/game.json: changelog: needs 'repo'"), "{problems}");
+    assert!(problems.contains("bad-repo/game.json: changelog: 'repo' must look like"), "{problems}");
+    assert!(problems.contains("bad-url/game.json: changelog: 'url' must be a web address"), "{problems}");
+    assert!(problems.contains("not-object/game.json: 'changelog' must be an object"), "{problems}");
+    assert!(problems.contains("typo/game.json: changelog: unknown field 'brnach'"), "{problems}");
+    // The games themselves still load; only the typo's changelog is usable.
+    assert_eq!(catalog.games.len(), 6);
+    assert!(catalog.game("typo").unwrap().changelog.is_some());
+    assert!(catalog.game("both").unwrap().changelog.is_none());
 }
 
 #[test]

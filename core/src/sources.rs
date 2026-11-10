@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use serde_json::Value;
 
-use crate::catalog::Source;
+use crate::catalog::{Changelog, Source};
 use crate::paths::{expand_home, safe_name};
 use crate::{fail, HubError, Result};
 
@@ -142,6 +142,41 @@ impl SourceResolver {
         let names: Vec<&str> = assets.iter().filter_map(|a| a.get("name").and_then(Value::as_str)).collect();
         let names = if names.is_empty() { "none".to_string() } else { names.join(", ") };
         fail(format!("Release '{tag}' of {repo} has no file named '{asset_name}' (it has: {names})."))
+    }
+
+    /// A small text file, such as a game's changelog.
+    pub fn fetch_text(&self, source: &Changelog) -> Result<String> {
+        let (url, what, github) = match source {
+            Changelog::Github { repo, path, reference } => {
+                let segments: Vec<String> = path.split('/').filter(|s| !s.is_empty()).map(quote).collect();
+                let mut url = format!("{}/repos/{repo}/contents/{}", self.github_api, segments.join("/"));
+                if !reference.is_empty() {
+                    url.push_str(&format!("?ref={}", quote(reference)));
+                }
+                (url, format!("file '{path}' in {repo}"), true)
+            }
+            Changelog::Url { url } => (url.clone(), format!("changelog at {url}"), false),
+        };
+        let mut request = self.agent.get(&url);
+        if github {
+            request = request.header("Accept", "application/vnd.github.raw+json");
+            for (key, value) in self.auth() {
+                request = request.header(key, value);
+            }
+        }
+        let mut response = request
+            .call()
+            .map_err(|e| HubError(format!("Could not fetch the {what}: {e}")))?;
+        if !response.status().is_success() {
+            if github {
+                return Err(github_error(&response, &what));
+            }
+            return fail(format!("Could not fetch the {what}: HTTP {}", response.status().as_u16()));
+        }
+        response
+            .body_mut()
+            .read_to_string()
+            .map_err(|e| HubError(format!("Could not read the {what}: {e}")))
     }
 }
 
