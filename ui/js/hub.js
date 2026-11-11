@@ -98,7 +98,8 @@ function button(label, { kind = "ghost", iconName, onclick, disabled, title, sma
 }
 
 const vlabel = (v) => (/^\d/.test(v) ? `v${v}` : v);
-const platformName = (p) => PLATFORM_NAMES[p] || p;
+// ("any" builds are for computers: a phone only runs Android ones)
+const platformName = (p) => (p === "any" && onPhone() ? "computers" : PLATFORM_NAMES[p] || p);
 
 function formatBytes(n) {
   if (!n) return "";
