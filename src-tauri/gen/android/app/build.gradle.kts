@@ -7,6 +7,12 @@ plugins {
     id("rust")
 }
 
+// Toki Hub's own version, from src-tauri/Cargo.toml: 0.3.0 is version code 3000, and each release
+// counts up, so Android installs an update over the version before
+val hubVersion = file("../../../Cargo.toml").readLines()
+    .first { it.startsWith("version = ") }.substringAfter("\"").substringBefore("\"")
+val hubVersionCode = hubVersion.split(".").map { it.toInt() }.let { (major, minor, patch) -> major * 1000000 + minor * 1000 + patch }
+
 val tauriProperties = Properties().apply {
     val propFile = file("tauri.properties")
     if (propFile.exists()) {
@@ -22,8 +28,8 @@ android {
         applicationId = "com.rowstar10.tokihub"
         minSdk = 24
         targetSdk = 37
-        versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
-        versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
+        versionCode = tauriProperties.getProperty("tauri.android.versionCode", hubVersionCode.toString()).toInt()
+        versionName = tauriProperties.getProperty("tauri.android.versionName", hubVersion)
     }
     // Release builds are signed with Toki Hub's key when GitHub has it (the same key every time,
     // so updates install over the old version); without it, with the debug key, for testing.
