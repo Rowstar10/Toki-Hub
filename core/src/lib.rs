@@ -4,6 +4,7 @@
 
 pub mod catalog;
 pub mod changelog;
+pub mod device;
 pub mod download;
 pub mod hub;
 pub mod installer;

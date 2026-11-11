@@ -7,6 +7,9 @@
 //!
 //! An installed version is recognised by the `.tokihub.json` marker in its folder, which also
 //! records how to launch it.
+//!
+//! On Android, games are apps: the APK is downloaded and handed to Android's installer (see
+//! device.rs), and Android, not a folder, knows what is installed.
 
 use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
@@ -20,6 +23,7 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
 use crate::catalog::{Build, Game, LaunchKind, Version};
+use crate::device::Device;
 use crate::download::{fetch, hex};
 use crate::paths::{is_within, safe_name};
 use crate::runtime::{Runtimes, DEFAULT_PYTHON, ENV_DIR};
@@ -88,6 +92,7 @@ pub struct Installer {
     logs_dir: PathBuf,
     is_running: IsRunning,
     platform: String,
+    device: Option<Arc<dyn Device>>,
     tasks: Mutex<HashMap<(String, String), Arc<Task>>>,
     next_id: AtomicU64,
 }
@@ -101,6 +106,7 @@ impl Installer {
         logs_dir: PathBuf,
         is_running: IsRunning,
         platform: &str,
+        device: Option<Arc<dyn Device>>,
     ) -> Installer {
         let installer = Installer {
             settings,
@@ -110,6 +116,7 @@ impl Installer {
             logs_dir,
             is_running,
             platform: platform.to_string(),
+            device,
             tasks: Mutex::new(HashMap::new()),
             next_id: AtomicU64::new(1),
         };
@@ -192,6 +199,7 @@ impl Installer {
             resolver: self.resolver.clone(),
             runtimes: self.runtimes.clone(),
             is_running: self.is_running.clone(),
+            device: self.device.clone(),
         };
         std::thread::Builder::new()
             .name(format!("install-{}", task.id))
@@ -243,7 +251,8 @@ impl Installer {
         }
         for entry in std::fs::read_dir(&self.downloads_dir).into_iter().flatten().flatten() {
             let path = entry.path();
-            if path.extension().is_some_and(|e| e == "part") && stale(&path) {
+            // (an APK waits here for Android's installer to read it, then isn't needed)
+            if path.extension().is_some_and(|e| e == "part" || e == "apk") && stale(&path) {
                 let _ = std::fs::remove_file(path);
             }
         }
@@ -263,6 +272,7 @@ struct Job {
     resolver: Arc<SourceResolver>,
     runtimes: Arc<Runtimes>,
     is_running: IsRunning,
+    device: Option<Arc<dyn Device>>,
 }
 
 impl Job {
@@ -289,6 +299,9 @@ impl Job {
     }
 
     fn install(&self, staging: &Path, temp_file: &mut Option<PathBuf>) -> Result<()> {
+        if self.build.launch.kind == LaunchKind::Android {
+            return self.install_app();
+        }
         let task = &self.task;
         match self.resolver.resolve(&self.build.source, &self.game.folder)? {
             Plan::Download(plan) => {
@@ -331,6 +344,28 @@ impl Job {
         }
         move_into_place(staging, &self.target)?;
         Ok(())
+    }
+
+    /// Android: download the APK, then Android's installer takes over (and asks the player).
+    fn install_app(&self) -> Result<()> {
+        let Some(device) = &self.device else {
+            return fail(format!("{} {} for Android can only be installed on Android.", self.game.title, self.version.version));
+        };
+        let task = &self.task;
+        let apk = match self.resolver.resolve(&self.build.source, &self.game.folder)? {
+            Plan::Download(plan) => {
+                task.set_status("downloading");
+                let part = self.download(&plan)?;
+                let apk = self.downloads_dir.join(format!("{}-{}.apk", self.game.id, safe_name(&self.version.version)));
+                std::fs::rename(&part, &apk)?;
+                apk
+            }
+            Plan::Local(local) => local.path,
+        };
+        task.check_cancel()?;
+        task.set_status("installing");
+        task.set_stage("Finish in Android's installer".into());
+        device.install(&apk)
     }
 
     fn download(&self, plan: &Download) -> Result<PathBuf> {

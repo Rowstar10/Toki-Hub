@@ -3,6 +3,10 @@ name: Build Toki Hub
 # Builds Toki Hub.exe on Windows, runs the tests (including a real install of Python and pygame),
 # tries the exe out, and keeps it as a download on the run's page (the "Artifacts" section).
 #
+# It also builds Toki Hub for Android (Toki-Hub-android.apk) and tries it on an emulated phone,
+# installing and playing a game through it. The new release gets the APK too, signed with the
+# ANDROID_KEYSTORE secret so phones can update to it.
+#
 # On the default branch, a version that has no release yet (`version` in src-tauri/Cargo.toml) is
 # published as a release. Its tag is tauri-v<version>: the hub's updater looks for that prefix, so it
 # must not change, or copies already out there would stop finding updates.
@@ -88,3 +92,164 @@ jobs:
           EOF
           gh release create "$tag" "dist/Toki Hub.exe#Toki Hub.exe" --target "$GITHUB_SHA" --latest \
             --title "Toki Hub $VERSION" --notes-file notes.md
+
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      signed: ${{ steps.key.outputs.signed }}
+    env:
+      NDK_VERSION: "28.2.13676358"
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install the Android build tools
+        timeout-minutes: 15
+        run: |
+          rustup target add aarch64-linux-android x86_64-linux-android
+          (yes || true) | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+          (yes || true) | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$NDK_VERSION" | grep -v "^\[" | tail -3
+          echo "NDK_HOME=$ANDROID_SDK_ROOT/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          npm ci
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: android
+
+      - name: Signing key
+        id: key
+        env:
+          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [[ -n "$ANDROID_KEYSTORE" && -n "$ANDROID_KEYSTORE_PASSWORD" ]]; then
+            echo "$ANDROID_KEYSTORE" | base64 -d > "$RUNNER_TEMP/toki.p12"
+            echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/toki.p12" >> "$GITHUB_ENV"
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::No ANDROID_KEYSTORE secret: this APK is signed with a throwaway debug key"
+          fi
+
+      - name: Build the APK
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          npx tauri android build --apk --ci --target aarch64 x86_64
+          mkdir -p dist
+          cp src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk dist/Toki-Hub-android.apk
+          rm -f "$RUNNER_TEMP/toki.p12"
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: Toki Hub for Android
+          path: dist/Toki-Hub-android.apk
+          if-no-files-found: error
+
+  android-test:
+    needs: android
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: Toki Hub for Android
+          path: dist
+
+      - name: Let the emulator use KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # Hu Taong is installed through the hub when the catalog has an Android version of it, and
+      # that version's APK has been published
+      - name: Which game to install
+        id: game
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          read -r package tag asset < <(python3 -c '
+          import json
+          game = json.load(open("catalog/hu-taong/game.json"))
+          for version in game["versions"]:
+              for build in version["builds"]:
+                  if build["platform"] == "android":
+                      source = build["source"]
+                      print(build["launch"]["package"], source.get("tag", ""), source.get("asset", ""))
+                      raise SystemExit
+          ' || true)
+          if [[ -n "$package" ]] && ! gh release view "$tag" --repo Rowstar10/Hu-Taong --json assets --jq '.assets[].name' 2>/dev/null | grep -qx "$asset"; then
+            echo "::warning::Hu Taong's $tag has no $asset yet, so installing it through the hub is skipped"
+            package=""
+          fi
+          echo "package=$package" >> "$GITHUB_OUTPUT"
+          echo "Hu Taong for Android: ${package:-not tried}"
+
+      - name: Try it on an emulated phone
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          INSTALL_GAME: ${{ steps.game.outputs.package != '' && 'Hu Taong' || '' }}
+          GAME_PACKAGE: ${{ steps.game.outputs.package }}
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-boot-anim -camera-back none
+          script: ./android-smoke-test.sh dist/Toki-Hub-android.apk target/android-test
+
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: Android screenshots
+          path: target/android-test
+
+  android-release:
+    needs: [windows, android, android-test]
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: Toki Hub for Android
+          path: dist
+
+      - name: Add the APK to the version's release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SIGNED: ${{ needs.android.outputs.signed }}
+        run: |
+          version="$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -1)"
+          tag="tauri-v$version"
+          if [[ "$SIGNED" != "true" ]]; then
+            echo "::warning::This run's APK was signed with a throwaway key, so it isn't published (phones couldn't update from it). Add the ANDROID_KEYSTORE and ANDROID_KEYSTORE_PASSWORD secrets, then use Re-run all jobs."
+            exit 0
+          fi
+          if ! gh release view "$tag" > /dev/null 2>&1; then
+            echo "No release $tag"; exit 0
+          fi
+          if gh release view "$tag" --json assets --jq '.assets[].name' | grep -q -- "-android.apk$"; then
+            echo "$tag already has its APK"; exit 0
+          fi
+          gh release upload "$tag" dist/Toki-Hub-android.apk
+          gh release view "$tag" --json body --jq .body > notes.md
+          printf '\n\nOn an Android phone or tablet (Android 7 or later), download **Toki-Hub-android.apk** and open it. Android asks to allow installing apps from your browser the first time.\n' >> notes.md
+          gh release edit "$tag" --notes-file notes.md

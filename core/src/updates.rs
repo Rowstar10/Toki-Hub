@@ -182,11 +182,13 @@ impl Updater {
             };
             (state.version.clone(), plan)
         };
+        // (Android's installer wants an APK to be called one)
+        let apk = self.source.as_ref().is_some_and(|source| source.asset_suffix.ends_with(".apk"));
         let updater = Arc::clone(self);
         std::thread::Builder::new()
             .name("update".into())
             .spawn(move || {
-                let file = updater.downloads_dir.join(format!("update-{}", quote(&version)));
+                let file = updater.downloads_dir.join(format!("update-{}{}", quote(&version), if apk { ".apk" } else { "" }));
                 let progress = |received: u64, total: u64| {
                     let mut state = updater.state.lock().unwrap();
                     state.received = received;

@@ -348,6 +348,53 @@ code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-siz
   .portrait { width: 84px; height: 84px; }
   .dialogue { position: sticky; bottom: 0; }
 }
+/* ---------- Phones ---------- */
+@media (max-width: 560px) {
+  .topbar { padding: 10px 12px 8px; }
+  .brand-halo { width: 34px; height: 34px; }
+  .brand-name { font-size: 22px; }
+  .icon-btn { width: 40px; height: 40px; }
+  .update-btn { height: 40px; padding: 0 12px; }
+  .layout { padding: 0 12px; gap: 12px; }
+  /* the library is a strip of games to swipe through */
+  .library { padding: 0; gap: 6px; }
+  .library > .section-title { display: none; }
+  .game-list { flex-direction: row; overflow-x: auto; gap: 8px; padding: 2px 2px 8px; scrollbar-width: none;
+    scroll-snap-type: x proximity; }
+  .game-list > li { flex: none; scroll-snap-align: start; }
+  .game-card { width: auto; max-width: 240px; padding: 8px 12px 8px 8px; }
+  .game-card.selected::before { left: 12px; right: 12px; top: auto; bottom: -2px; width: auto; height: 4px; }
+  .game-card .game-icon { width: 40px; height: 40px; border-radius: 10px; }
+  .hero { height: 170px; border-radius: 16px; }
+  .headline { margin: -44px 8px 0; padding: 14px 14px 14px 22px; gap: 12px; flex-wrap: nowrap; align-items: center; }
+  .headline .game-icon { width: 64px; height: 64px; border-radius: 16px; }
+  .game-title { font-size: 26px; }
+  .tagline { font-size: 14px; }
+  .action-bar { gap: 12px; padding: 14px; }
+  .action-version { min-width: 0; }
+  .action-main { flex-basis: 100%; }
+  .action-main .btn-primary { flex: 1; }
+  .progress { min-width: 0; max-width: none; flex-basis: 100%; }
+  .progress-top { gap: 10px; }
+  .progress-text { text-align: right; }
+  .panel { padding: 16px; }
+  .columns { gap: 12px; margin-top: 12px; }
+  .stack { gap: 12px; }
+  .dialogue { padding: 0 10px 10px; }
+  .portrait { width: 60px; height: 60px; margin-right: -22px; }
+  .dialogue-box { min-height: 0; padding: 8px 30px 10px 34px; }
+  .dialogue-box::before { left: 34px; top: 33px; }
+  .speaker-name { font-size: 15px; }
+  .line { margin-top: 6px; font-size: 13.5px; }
+  .toasts { top: 10px; left: 12px; right: 12px; width: auto; }
+  .modal { padding: 18px 16px; }
+  .modal-title { font-size: 22px; }
+  .modal-actions { flex-wrap: wrap; }
+}
+
+/* On Android games are apps: no folders, logs or Python to show */
+body.android .desktop-only { display: none !important; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }

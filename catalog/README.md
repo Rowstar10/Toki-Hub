@@ -85,9 +85,10 @@ to the version's `notes`, so keep a one-line `notes` for each version as well.
 }
 ```
 
-A version can have several builds, one per platform: `windows`, `macos`, `linux` or `any`. The hub
-uses the build for the computer it runs on, falling back to an `any` build. A version with no
-matching build is still listed, marked "No Windows build".
+A version can have several builds, one per platform: `windows`, `macos`, `linux`, `android` or
+`any`. The hub uses the build for the computer it runs on, falling back to an `any` build. A version
+with no matching build is still listed, marked "No Windows build". Toki Hub on a phone only ever uses
+`android` builds (an `any` build is for computers).
 
 Each version installs into its own folder, so any number of versions can be installed side by side.
 
@@ -159,6 +160,20 @@ This is how Hu Taong 1.0 is listed right now. Players need Python with the game'
   "note": "Runs from source: needs Python 3 with pygame (pip install pygame)."
 }
 ```
+
+### An Android version (for Toki Hub on phones)
+
+```json
+{
+  "platform": "android",
+  "source": { "type": "github-release", "repo": "Rowstar10/Hu-Taong", "tag": "v1.5-android", "asset": "Hu-Taong-1.5-android.apk" },
+  "launch": { "type": "android", "package": "com.rowstar10.hutaong.v1_5" }
+}
+```
+
+On Android a game is an app: the hub downloads the APK and Android's installer asks the player to
+install it. `package` is the app's package name, which is how the hub knows it is installed and
+starts it. Give each version its own package name so versions can be installed side by side.
 
 ### An old version that only exists on this computer
 

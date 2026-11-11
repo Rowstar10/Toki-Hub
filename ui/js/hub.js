@@ -16,7 +16,7 @@ const ICON_PATHS = {
   info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8v.2"/>',
 };
 
-const PLATFORM_NAMES = { windows: "Windows", macos: "macOS", linux: "Linux", any: "any platform" };
+const PLATFORM_NAMES = { windows: "Windows", macos: "macOS", linux: "Linux", android: "Android", any: "any platform" };
 
 const ui = {
   data: null,               // last full state from the hub
@@ -98,7 +98,8 @@ function button(label, { kind = "ghost", iconName, onclick, disabled, title, sma
 }
 
 const vlabel = (v) => (/^\d/.test(v) ? `v${v}` : v);
-const platformName = (p) => PLATFORM_NAMES[p] || p;
+// ("any" builds are for computers: a phone only runs Android ones)
+const platformName = (p) => (p === "any" && onPhone() ? "computers" : PLATFORM_NAMES[p] || p);
 
 function formatBytes(n) {
   if (!n) return "";
@@ -125,6 +126,8 @@ function recall(key) {
 /* ---------- Reading the state ---------- */
 
 const games = () => (ui.data ? ui.data.games : []);
+// On Android, games are apps: Android installs, starts and removes them, and asks the player first.
+const onPhone = () => Boolean(ui.data?.android);
 const gameById = (id) => games().find((g) => g.id === id);
 const installedInfo = (gameId, version) => ui.data.installed[gameId]?.[version];
 const isRunning = (gameId, version) => ui.data.running.some((r) => r.game_id === gameId && r.version === version);
@@ -218,8 +221,9 @@ function renderDetail() {
     detail.replaceChildren(el("div", { class: "empty" }, el("div", {},
       el("img", { src: "img/toki-emblem.svg", alt: "" }),
       el("h2", { text: "No games yet" }),
-      el("p", { text: "Toki Hub lists every game in its catalog folder. Add your first one and it will show up here." }),
-      button("Add a game", { kind: "primary", onclick: () => openDialog("help-dialog") }))));
+      el("p", { text: onPhone() ? "Toki Hub lists every game in its catalog. None has an Android version yet."
+        : "Toki Hub lists every game in its catalog folder. Add your first one and it will show up here." }),
+      onPhone() ? null : button("Add a game", { kind: "primary", onclick: () => openDialog("help-dialog") }))));
     return;
   }
   const version = selectedVersion(game);
@@ -271,16 +275,18 @@ function actionBar(game, version) {
     side.push(button("Stop", { kind: "danger-ghost", iconName: "stop", onclick: () => stopGame(game, v),
       title: "Close the game" }));
   } else if (installed) {
-    main.push(button("Launch", { kind: "primary", iconName: "play", onclick: () => launchGame(game, v) }));
+    main.push(button(onPhone() ? "Play" : "Launch", { kind: "primary", iconName: "play", onclick: () => launchGame(game, v) }));
   } else if (version.build) {
-    main.push(button("Download", { kind: "primary", iconName: "download", onclick: () => installGame(game, v) }));
+    main.push(button(onPhone() ? "Install" : "Download", { kind: "primary", iconName: "download", onclick: () => installGame(game, v) }));
   } else {
     main.push(button(`Not available for ${platformName(ui.data.platform)}`, { kind: "primary", disabled: true }));
   }
 
   if (installed && !task) {
-    side.push(button("Folder", { iconName: "folder", onclick: () => attempt(() => api("open_folder", game.id, v), "Could not open the folder") }));
-    side.push(button("Log", { iconName: "log", onclick: () => attempt(() => api("open_log", game.id, v), "No log to show") }));
+    if (!onPhone()) {
+      side.push(button("Folder", { iconName: "folder", onclick: () => attempt(() => api("open_folder", game.id, v), "Could not open the folder") }));
+      side.push(button("Log", { iconName: "log", onclick: () => attempt(() => api("open_log", game.id, v), "No log to show") }));
+    }
     if (!running) {
       if (version.build) side.push(button("Reinstall", { iconName: "download", onclick: () => installGame(game, v) }));
       side.push(button("Uninstall", { kind: "danger-ghost", iconName: "trash", onclick: () => uninstallGame(game, v) }));
@@ -294,7 +300,8 @@ function actionBar(game, version) {
   } else if (version.platforms.length) {
     meta.push(el("span", {}, icon("info"), `Builds exist for ${version.platforms.map(platformName).join(", ")} only.`));
   }
-  if (installed) meta.push(el("span", {}, `Installed ${formatDate(installed.installed_at)}${installed.size ? ` · ${formatBytes(installed.size)}` : ""}`));
+  if (installed && onPhone()) meta.push(el("span", {}, "Installed on this phone"));
+  else if (installed) meta.push(el("span", {}, `Installed ${formatDate(installed.installed_at)}${installed.size ? ` · ${formatBytes(installed.size)}` : ""}`));
 
   const bar = [
     el("div", { class: "action-version" }, el("span", { class: "label", text: "Version" }), el("span", { class: "value", text: vlabel(v) })),
@@ -441,8 +448,9 @@ async function stopGame(game, version) {
 function uninstallGame(game, version) {
   const dialog = document.getElementById("confirm-dialog");
   document.getElementById("confirm-title").textContent = `Uninstall ${game.title} ${vlabel(version)}?`;
-  document.getElementById("confirm-text").textContent =
-    "Its files are deleted from this computer. You can download it again at any time. Save data the game keeps elsewhere is not touched.";
+  document.getElementById("confirm-text").textContent = onPhone()
+    ? "Android asks you to confirm, then removes the app, with its saves. You can install it again at any time."
+    : "Its files are deleted from this computer. You can download it again at any time. Save data the game keeps elsewhere is not touched.";
   document.getElementById("confirm-ok").onclick = async () => {
     dialog.close();
     const ok = await attempt(() => api("uninstall", game.id, version).then(() => true), "Could not uninstall");
@@ -499,7 +507,11 @@ function noticeTaskChanges() {
     ui.taskStatus[task.id] = task.status;
     if (!before || before === task.status) continue;
     const vars = { t: task.title, v: vlabel(task.version) };
-    if (task.status === "done") {
+    if (task.status === "done" && onPhone()) {
+      // Android's installer is up now; the game shows as installed once the player confirms
+      toast({ kind: "success", title: `${task.title} ${vlabel(task.version)} downloaded`, text: "Tap Install in Android's prompt to finish." });
+      Toki.say("installDone", vars);
+    } else if (task.status === "done") {
       toast({ kind: "success", title: `${task.title} ${vlabel(task.version)} installed`, text: "Ready to launch." });
       Toki.say("installDone", vars);
     } else if (task.status === "error") {
@@ -594,8 +606,10 @@ async function checkForUpdates(manual = false) {
 function openUpdate() {
   const update = ui.data.update || {};
   document.getElementById("update-title").textContent = `Toki Hub ${update.version}`;
-  document.getElementById("update-subtitle").textContent =
-    `You have version ${update.current}. Updating takes a few seconds; Toki Hub restarts by itself.`;
+  document.getElementById("update-subtitle").textContent = onPhone()
+    ? `You have version ${update.current}. Once it has downloaded, Android asks you to confirm the update.`
+    : `You have version ${update.current}. Updating takes a few seconds; Toki Hub restarts by itself.`;
+  document.querySelector("#update-now > span").textContent = onPhone() ? "Update" : "Update and restart";
   const notes = (update.notes || "").replace(/\*\*/g, "").trim();
   document.getElementById("update-notes").replaceChildren(notes ? formatNotes(notes) : el("p", { class: "muted", text: "No release notes." }));
   renderUpdate();
@@ -696,6 +710,7 @@ async function saveSettings(event) {
 
 function applyState(data) {
   ui.data = data;
+  document.body.classList.toggle("android", Boolean(data.android));
   for (const task of data.tasks) ui.taskStatus[task.id] = task.status;
   for (const event of data.events) ui.lastEvent = Math.max(ui.lastEvent, event.id);
   if (!gameById(ui.gameId)) {

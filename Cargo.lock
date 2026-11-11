@@ -3788,6 +3788,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tauri-plugin-tokidevice"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-plugin",
+]
+
+[[package]]
 name = "tauri-runtime"
 version = "2.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4008,7 +4018,7 @@ checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
 
 [[package]]
 name = "toki-hub"
-version = "0.2.7"
+version = "0.3.0"
 dependencies = [
  "include_dir",
  "serde_json",
@@ -4016,6 +4026,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-dialog",
  "tauri-plugin-opener",
+ "tauri-plugin-tokidevice",
  "toki-hub-core",
 ]
 

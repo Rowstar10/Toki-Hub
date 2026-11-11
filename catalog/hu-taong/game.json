@@ -23,6 +23,17 @@
           },
           "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
           "note": "Runs from source with Python 3.12 and pygame."
+        },
+        {
+          "platform": "android",
+          "source": {
+            "type": "github-release",
+            "repo": "Rowstar10/Hu-Taong",
+            "tag": "v1.5-android",
+            "asset": "Hu-Taong-1.5-android.apk"
+          },
+          "launch": { "type": "android", "package": "com.rowstar10.hutaong.v1_5" },
+          "note": "Touch controls. Plays online with Hu Taong 1.5 on a PC."
         }
       ]
     },
