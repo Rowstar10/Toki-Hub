@@ -12,14 +12,14 @@
     {
       "version": "1.5",
       "date": "2026-11-11",
-      "notes": "Smoother online play.",
+      "notes": "Smoother online play, and hits off the joining player's paddle that look the same on both screens.",
       "builds": [
         {
           "platform": "any",
           "source": {
             "type": "github-archive",
             "repo": "Rowstar10/Hu-Taong",
-            "ref": "3315fb574f5d04af0dfa4efd5d4c4daadc948362"
+            "ref": "0e742ec56ab62386e8decbd49077370870d134f5"
           },
           "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
           "note": "Runs from source with Python 3.12 and pygame."
