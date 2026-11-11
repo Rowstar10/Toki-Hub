@@ -46,7 +46,7 @@ class DevicePlugin(private val activity: Activity) : Plugin(activity) {
             val info = activity.packageManager.getPackageInfo(args.name, 0)
             answer.put("version", info.versionName ?: "")
         } catch (e: PackageManager.NameNotFoundException) {
-            answer.put("version", null)
+            answer.put("version", null as String?)   // (left out: not installed)
         }
         invoke.resolve(answer)
     }
@@ -63,7 +63,8 @@ class DevicePlugin(private val activity: Activity) : Plugin(activity) {
                 return
             }
             val file = File(args.path)
-            val uri = FileProvider.getUriForFile(activity, activity.packageName + ".fileprovider"   // the app's own (gen/android: file_paths.xml), file)
+            // the app's own file provider (src-tauri/gen/android: file_paths.xml)
+            val uri = FileProvider.getUriForFile(activity, activity.packageName + ".fileprovider", file)
             val intent = Intent(Intent.ACTION_VIEW)
                 .setDataAndType(uri, "application/vnd.android.package-archive")
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)

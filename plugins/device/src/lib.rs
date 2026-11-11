@@ -33,9 +33,6 @@ pub struct Folders {
     pub cache: String,
 }
 
-#[derive(Deserialize)]
-struct Nothing {}
-
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("tokidevice")
         .setup(|_app, _api| {
@@ -85,15 +82,15 @@ mod phone {
         }
 
         pub fn install(&self, apk: &str) -> Result<(), String> {
-            self.call::<Nothing>("install", File { path: apk }).map(|_| ())
+            self.call::<serde_json::Value>("install", File { path: apk }).map(|_| ())
         }
 
         pub fn launch(&self, package: &str) -> Result<(), String> {
-            self.call::<Nothing>("launch", Name { name: package }).map(|_| ())
+            self.call::<serde_json::Value>("launch", Name { name: package }).map(|_| ())
         }
 
         pub fn uninstall(&self, package: &str) -> Result<(), String> {
-            self.call::<Nothing>("uninstall", Name { name: package }).map(|_| ())
+            self.call::<serde_json::Value>("uninstall", Name { name: package }).map(|_| ())
         }
     }
 }
