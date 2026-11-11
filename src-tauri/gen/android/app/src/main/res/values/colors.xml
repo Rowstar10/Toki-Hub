@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Toki Hub's light sky blue, behind the system bars -->
+    <color name="toki_sky">#EAF6FF</color>
+</resources>

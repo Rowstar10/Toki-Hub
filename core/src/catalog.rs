@@ -12,15 +12,15 @@ use crate::paths::{is_within, safe_name};
 use crate::versions::sort_newest_first;
 use crate::{fail, Result};
 
-pub const PLATFORMS: [&str; 4] = ["windows", "macos", "linux", "any"];
+pub const PLATFORMS: [&str; 5] = ["windows", "macos", "linux", "android", "any"];
 pub const IMAGE_TYPES: [&str; 6] = ["png", "jpg", "jpeg", "webp", "gif", "svg"];
 const SOURCE_TYPES: [&str; 4] = ["url", "github-release", "github-archive", "local"];
-const LAUNCH_TYPES: [&str; 3] = ["executable", "python", "open"];
+const LAUNCH_TYPES: [&str; 4] = ["executable", "python", "open", "android"];
 const GAME_FIELDS: [&str; 10] =
     ["title", "tagline", "description", "developer", "tags", "icon", "cover", "accent", "changelog", "versions"];
 const VERSION_FIELDS: [&str; 4] = ["version", "date", "notes", "builds"];
 const BUILD_FIELDS: [&str; 4] = ["platform", "source", "launch", "note"];
-const LAUNCH_FIELDS: [&str; 5] = ["type", "path", "args", "python", "packages"];
+const LAUNCH_FIELDS: [&str; 6] = ["type", "path", "args", "python", "packages", "package"];
 const CHANGELOG_FIELDS: [&str; 4] = ["repo", "path", "ref", "url"];
 
 /// Where a game's changelog is: a Markdown file with a `## <version>` heading for each version.
@@ -67,6 +67,8 @@ pub enum LaunchKind {
     Executable,
     Python,
     Open,
+    /// An Android app (an APK), started by its package name.
+    Android,
 }
 
 /// How to start a build: `path` is relative to the installed version's folder.
@@ -74,6 +76,7 @@ pub enum LaunchKind {
 pub struct Launch {
     #[serde(rename = "type")]
     pub kind: LaunchKind,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub path: String,
     #[serde(default)]
     pub args: Vec<String>,
@@ -83,6 +86,9 @@ pub struct Launch {
     /// For python games: packages to install for it, like "pygame==2.6.1".
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub packages: Vec<String>,
+    /// For Android apps: the app's package name, like "com.rowstar10.hutaong.v1_5".
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub package: String,
 }
 
 #[derive(Debug, Clone)]
@@ -121,11 +127,11 @@ impl Version {
         safe_name(&self.version)
     }
 
-    /// The build to use on `platform`: an exact match first, otherwise an "any" build.
+    /// The build to use on `platform`: an exact match first, otherwise an "any" build. On
+    /// Android only an Android build will do ("any" builds are for computers).
     pub fn build_for(&self, platform: &str) -> Option<&Build> {
-        [platform, "any"]
-            .iter()
-            .find_map(|wanted| self.builds.iter().find(|build| build.platform == *wanted))
+        let wanted: &[&str] = if platform == "android" { &["android"] } else { &[platform, "any"] };
+        wanted.iter().find_map(|wanted| self.builds.iter().find(|build| build.platform == *wanted))
     }
 }
 
@@ -468,7 +474,12 @@ fn load_build(entry: &Value, place: &str, check: &mut Checker) -> Option<Build> 
     let source = load_source(entry.get("source"), place, check);
     let launch = load_launch(entry.get("launch"), place, check);
     let note = check.text(entry, "note", place, false);
-    Some(Build { platform, source: source?, launch: launch?, note })
+    let launch = launch?;
+    if (platform == "android") != (launch.kind == LaunchKind::Android) {
+        check.report(place, "an \"android\" build needs an \"android\" launch, and only it can have one");
+        return None;
+    }
+    Some(Build { platform, source: source?, launch, note })
 }
 
 fn load_source(source: Option<&Value>, place: &str, check: &mut Checker) -> Option<Source> {
@@ -541,6 +552,9 @@ fn load_launch(launch: Option<&Value>, place: &str, check: &mut Checker) -> Opti
         check.report(&place, &format!("'type' must be one of {}", LAUNCH_TYPES.join(", ")));
         return None;
     }
+    if kind == "android" {
+        return load_android_launch(launch, &place, check);
+    }
     let path = check.text(launch, "path", &place, true);
     if path.is_empty() {
         return None;
@@ -586,7 +600,43 @@ fn load_launch(launch: Option<&Value>, place: &str, check: &mut Checker) -> Opti
         "python" => LaunchKind::Python,
         _ => LaunchKind::Open,
     };
-    Some(Launch { kind, path: unix_style, args, python, packages })
+    Some(Launch { kind, path: unix_style, args, python, packages, package: String::new() })
+}
+
+/// An Android app: just its package name; Android knows how to start it.
+fn load_android_launch(launch: &Map<String, Value>, place: &str, check: &mut Checker) -> Option<Launch> {
+    let package = check.text(launch, "package", place, true);
+    if package.is_empty() {
+        return None;
+    }
+    if !is_android_package(&package) {
+        check.report(place, "'package' must be an Android package name like \"com.example.game\"");
+        return None;
+    }
+    for key in ["path", "args", "python", "packages"] {
+        if launch.contains_key(key) {
+            check.report(place, &format!("'{key}' doesn't apply to Android apps (ignored)"));
+        }
+    }
+    Some(Launch {
+        kind: LaunchKind::Android,
+        path: String::new(),
+        args: Vec::new(),
+        python: String::new(),
+        packages: Vec::new(),
+        package,
+    })
+}
+
+/// Dot-separated parts, each a letter then letters, digits or underscores.
+fn is_android_package(text: &str) -> bool {
+    let parts: Vec<&str> = text.split('.').collect();
+    parts.len() >= 2
+        && parts.iter().all(|part| {
+            let mut chars = part.chars();
+            chars.next().is_some_and(|c| c.is_ascii_alphabetic())
+                && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+        })
 }
 
 /// "3", "3.12" or "3.12.7".

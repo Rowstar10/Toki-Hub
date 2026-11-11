@@ -12,6 +12,9 @@ double-click it. Nothing to install.
 Windows may say it "protected your PC", because the exe isn't code-signed. Click **More info**, then
 **Run anyway**.
 
+On an Android phone or tablet, get **Toki-Hub-android.apk** from the same release and open it. There,
+games install as apps: the hub downloads each one and Android asks you to install it.
+
 ## Setup
 
 Open Settings (top right) and paste in a
@@ -37,8 +40,10 @@ press the reload button in the hub.
 
 ## Releasing a new version
 
-Change `version` in [`src-tauri/Cargo.toml`](src-tauri/Cargo.toml) and push. GitHub builds Toki Hub.exe,
-publishes it as a release, and running copies offer the update.
+Change `version` in [`src-tauri/Cargo.toml`](src-tauri/Cargo.toml) and push. GitHub builds Toki Hub.exe
+and Toki-Hub-android.apk, publishes them as a release, and running copies offer the update. The APK
+is signed with the `ANDROID_KEYSTORE` and `ANDROID_KEYSTORE_PASSWORD` secrets (the same key every
+time, or phones can't update).
 
 ## Building it yourself
 
@@ -49,7 +54,8 @@ npm ci
 npm run build
 ```
 
-The exe is `target/release/toki-hub.exe`. Tests:
+The exe is `target/release/toki-hub.exe`. For Android (also needs the Android SDK and NDK):
+`npx tauri android build --apk`. Tests:
 
 ```bash
 cargo test -p toki-hub-core

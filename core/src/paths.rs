@@ -41,7 +41,9 @@ pub fn expand_home(text: &str) -> PathBuf {
 
 /// The platform name used by `builds[].platform` in the catalog.
 pub fn current_platform() -> &'static str {
-    if cfg!(windows) {
+    if cfg!(target_os = "android") {
+        "android"
+    } else if cfg!(windows) {
         "windows"
     } else if cfg!(target_os = "macos") {
         "macos"

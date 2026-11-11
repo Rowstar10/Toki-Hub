@@ -1,0 +1,6 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. -->
+    <style name="Theme.toki_hub" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowBackground">@color/toki_sky</item>
+    </style>
+</resources>

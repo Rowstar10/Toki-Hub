@@ -46,7 +46,10 @@ pub struct SourceResolver {
 /// The HTTP client: errors like 404 come back as responses, stalled connections time out, and
 /// certificates are checked the way the operating system checks them.
 pub fn http_agent() -> ureq::Agent {
-    let tls = ureq::tls::TlsConfig::builder().root_certs(ureq::tls::RootCerts::PlatformVerifier).build();
+    // On Android the system's certificate check needs Java set up for it; the built-in list of
+    // certificate authorities (as browsers ship) does the same job there.
+    let roots = if cfg!(target_os = "android") { ureq::tls::RootCerts::WebPki } else { ureq::tls::RootCerts::PlatformVerifier };
+    let tls = ureq::tls::TlsConfig::builder().root_certs(roots).build();
     ureq::Agent::config_builder()
         .tls_config(tls)
         .http_status_as_error(false)

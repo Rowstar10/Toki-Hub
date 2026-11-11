@@ -5,8 +5,9 @@ use std::sync::{Arc, RwLock};
 
 use serde_json::{json, Map, Value};
 
-use crate::catalog::{Build, Catalog, Game, IMAGE_TYPES};
+use crate::catalog::{Build, Catalog, Game, LaunchKind, IMAGE_TYPES};
 use crate::changelog::Changelogs;
+use crate::device::Device;
 use crate::installer::Installer;
 use crate::launcher::{system_opener, Launcher, Opener};
 use crate::paths::{expand_home, is_within, which};
@@ -32,6 +33,8 @@ pub struct HubOptions {
     pub updates: Option<UpdateSource>,
     /// This copy was just started by an update.
     pub just_updated: bool,
+    /// On Android: the phone, which installs, starts and removes the games (they are apps).
+    pub device: Option<Arc<dyn Device>>,
 }
 
 impl HubOptions {
@@ -46,6 +49,7 @@ impl HubOptions {
             opener: system_opener(),
             updates: None,
             just_updated: false,
+            device: None,
         }
     }
 }
@@ -61,6 +65,7 @@ pub struct Hub {
     pub installer: Installer,
     pub updater: Arc<Updater>,
     just_updated: bool,
+    device: Option<Arc<dyn Device>>,
     catalog: RwLock<Arc<Catalog>>,
     resolver: Arc<SourceResolver>,
     changelogs: Changelogs,
@@ -83,6 +88,7 @@ impl Hub {
             data_dir.join("logs"),
             Arc::new(move |game_id: &str, version: &str| watcher.is_running(game_id, version)),
             &options.platform,
+            options.device.clone(),
         );
         let updater = Updater::new(
             options.updates,
@@ -105,6 +111,7 @@ impl Hub {
             installer,
             updater,
             just_updated: options.just_updated,
+            device: options.device,
             catalog: RwLock::new(Arc::new(catalog)),
             resolver,
             changelogs,
@@ -133,6 +140,7 @@ impl Hub {
             "settings": self.settings.for_ui(),
             "places": {"catalog": self.catalog_dir(), "data": self.data_dir},
             "native_window": true,
+            "android": self.device.is_some(),
             "just_updated": self.just_updated,
         });
         if let (Value::Object(state), Value::Object(changing)) = (&mut state, self.poll(0)) {
@@ -143,7 +151,19 @@ impl Hub {
 
     /// The parts of the state that change while the hub is open.
     pub fn poll(&self, after_event: u64) -> Value {
-        let installed: Map<String, Value> = self
+        let installed = if self.device.is_some() { self.installed_apps() } else { self.installed_folders() };
+        json!({
+            "installed": installed,
+            "tasks": self.installer.tasks(),
+            "running": self.launcher.running(),
+            "events": self.launcher.events_since(after_event),
+            "update": self.updater.to_json(),
+        })
+    }
+
+    /// Installed versions, from the install folder.
+    fn installed_folders(&self) -> Map<String, Value> {
+        self
             .installer
             .installed()
             .into_iter()
@@ -157,14 +177,46 @@ impl Hub {
                     .collect();
                 (game_id, Value::Object(versions))
             })
-            .collect();
-        json!({
-            "installed": installed,
-            "tasks": self.installer.tasks(),
-            "running": self.launcher.running(),
-            "events": self.launcher.events_since(after_event),
-            "update": self.updater.to_json(),
-        })
+            .collect()
+    }
+
+    /// Android: the catalog's apps that the phone has installed.
+    fn installed_apps(&self) -> Map<String, Value> {
+        let Some(device) = &self.device else { return Map::new() };
+        let catalog = self.catalog();
+        let mut found = Map::new();
+        for game in &catalog.games {
+            let mut versions = Map::new();
+            for version in &game.versions {
+                let Some(package) = self.app_package(game, &version.version) else { continue };
+                if let Some(app_version) = device.installed(&package) {
+                    versions.insert(
+                        version.version.clone(),
+                        json!({"path": package, "installed_at": null, "size": null, "app_version": app_version}),
+                    );
+                }
+            }
+            if !versions.is_empty() {
+                found.insert(game.id.clone(), Value::Object(versions));
+            }
+        }
+        found
+    }
+
+    /// Android: the app a version is installed as, if it has an Android build.
+    fn app_package(&self, game: &Game, version: &str) -> Option<String> {
+        let build = game.versions.iter().find(|v| v.version == version)?.build_for(&self.platform)?;
+        (build.launch.kind == LaunchKind::Android).then(|| build.launch.package.clone())
+    }
+
+    /// Android: the app for a version, or an error to show.
+    fn app(&self, game_id: &str, version: &str) -> Result<(Arc<dyn Device>, String)> {
+        let catalog = self.catalog();
+        let game = catalog.game(game_id)?;
+        let (Some(device), Some(package)) = (&self.device, self.app_package(game, version)) else {
+            return fail(format!("{} {version} has no Android version.", game.title));
+        };
+        Ok((device.clone(), package))
     }
 
     pub fn reload(&self) -> Value {
@@ -192,10 +244,19 @@ impl Hub {
     }
 
     pub fn uninstall(&self, game_id: &str, version: &str) -> Result<()> {
+        if self.device.is_some() {
+            let (device, package) = self.app(game_id, version)?;
+            return device.uninstall(&package);         // Android asks the player, then removes it
+        }
         self.installer.uninstall(game_id, version)
     }
 
     pub fn launch(&self, game_id: &str, version: &str) -> Result<Value> {
+        if self.device.is_some() {
+            let (device, package) = self.app(game_id, version)?;
+            device.launch(&package)?;
+            return Ok(json!({"game_id": game_id, "version": version, "started": true}));
+        }
         let catalog = self.catalog();
         let game = catalog.game(game_id)?;
         let Some(installed) = self.installer.installed_version(game_id, version) else {
@@ -249,6 +310,14 @@ impl Hub {
     /// The verified new exe, once downloaded. The app swaps it in and restarts.
     pub fn update_file(&self) -> Option<PathBuf> {
         self.updater.ready_file()
+    }
+
+    /// Android: hand the downloaded update (an APK) to Android's installer.
+    pub fn install_update(&self) -> Result<()> {
+        let (Some(device), Some(file)) = (&self.device, self.updater.ready_file()) else {
+            return fail("The update has not finished downloading.");
+        };
+        device.install(&file)
     }
 
     // -- Settings --

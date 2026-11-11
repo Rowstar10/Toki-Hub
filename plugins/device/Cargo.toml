@@ -1,0 +1,15 @@
+[package]
+name = "tauri-plugin-tokidevice"
+version = "0.1.0"
+edition = "2021"
+description = "Toki Hub's way into the phone on Android: installing, starting and removing game apps."
+publish = false
+links = "tauri-plugin-tokidevice"
+
+[dependencies]
+tauri = { version = "2.12", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[build-dependencies]
+tauri-plugin = { version = "2.7", features = ["build"] }
