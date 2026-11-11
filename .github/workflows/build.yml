@@ -170,13 +170,29 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      # Hu Taong is installed through the hub when the catalog has an Android version of it
+      # Hu Taong is installed through the hub when the catalog has an Android version of it, and
+      # that version's APK has been published
       - name: Which game to install
         id: game
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          package="$(grep -o '"package": *"[^"]*"' catalog/hu-taong/game.json | head -1 | sed 's/.*"\([^"]*\)"$/\1/')"
+          read -r package tag asset < <(python3 -c '
+          import json
+          game = json.load(open("catalog/hu-taong/game.json"))
+          for version in game["versions"]:
+              for build in version["builds"]:
+                  if build["platform"] == "android":
+                      source = build["source"]
+                      print(build["launch"]["package"], source.get("tag", ""), source.get("asset", ""))
+                      raise SystemExit
+          ' || true)
+          if [[ -n "$package" ]] && ! gh release view "$tag" --repo Rowstar10/Hu-Taong --json assets --jq '.assets[].name' 2>/dev/null | grep -qx "$asset"; then
+            echo "::warning::Hu Taong's $tag has no $asset yet, so installing it through the hub is skipped"
+            package=""
+          fi
           echo "package=$package" >> "$GITHUB_OUTPUT"
-          echo "Hu Taong for Android: ${package:-none in the catalog}"
+          echo "Hu Taong for Android: ${package:-not tried}"
 
       - name: Try it on an emulated phone
         uses: reactivecircus/android-emulator-runner@v2
