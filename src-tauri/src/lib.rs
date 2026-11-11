@@ -62,13 +62,48 @@ static RELAUNCH: OnceLock<(PathBuf, Vec<String>)> = OnceLock::new();
 
 static BUILT_IN_CATALOG: Dir = include_dir!("$CARGO_MANIFEST_DIR/../catalog");
 
-type HubState<'a> = State<'a, Arc<Hub>>;
+type HubState<'a> = State<'a, Hubs>;
 type Answer<T> = Result<T, String>;
 
+/// The hub. On a computer it is made before the window opens. On a phone it is made by the first
+/// command that needs it, off the main thread: making it asks Android where the app's files are,
+/// and Android answers on its main thread, which must not be kept waiting meanwhile.
+#[derive(Clone)]
+struct Hubs(Arc<HubCell>);
+
+struct HubCell {
+    hub: std::sync::OnceLock<Arc<Hub>>,
+    make: std::sync::Mutex<Option<Box<dyn FnOnce() -> Hub + Send>>>,
+}
+
+impl Hubs {
+    #[cfg(desktop)]
+    fn ready(hub: Hub) -> Hubs {
+        let cell = HubCell { hub: std::sync::OnceLock::new(), make: std::sync::Mutex::new(None) };
+        let _ = cell.hub.set(Arc::new(hub));
+        Hubs(Arc::new(cell))
+    }
+
+    #[cfg(mobile)]
+    fn later(make: impl FnOnce() -> Hub + Send + 'static) -> Hubs {
+        Hubs(Arc::new(HubCell { hub: std::sync::OnceLock::new(), make: std::sync::Mutex::new(Some(Box::new(make))) }))
+    }
+
+    fn get(&self) -> Arc<Hub> {
+        self.0
+            .hub
+            .get_or_init(|| {
+                let make = self.0.make.lock().unwrap().take().expect("the hub is made once");
+                Arc::new(make())
+            })
+            .clone()
+    }
+}
+
 /// Run hub work off the UI thread.
-async fn work<T: Send + 'static>(hub: &Arc<Hub>, job: impl FnOnce(&Hub) -> Result<T, HubError> + Send + 'static) -> Answer<T> {
-    let hub = hub.clone();
-    match tauri::async_runtime::spawn_blocking(move || job(&hub)).await {
+async fn work<T: Send + 'static>(hubs: &Hubs, job: impl FnOnce(&Hub) -> Result<T, HubError> + Send + 'static) -> Answer<T> {
+    let hubs = hubs.clone();
+    match tauri::async_runtime::spawn_blocking(move || job(&hubs.get())).await {
         Ok(result) => result.map_err(|error| error.0),
         Err(error) => Err(format!("Unexpected error: {error}")),
     }
@@ -173,7 +208,7 @@ async fn apply_update(app: AppHandle, hub: HubState<'_>) -> Answer<()> {
     }
     #[cfg(desktop)]
     {
-        let Some(file) = hub.update_file() else { return Err("The update has not finished downloading.".into()) };
+        let Some(file) = hub.get().update_file() else { return Err("The update has not finished downloading.".into()) };
         let Some((exe, args)) = RELAUNCH.get().cloned() else { return Err("Toki Hub does not know where it is.".into()) };
         let swap_target = exe.clone();
         tauri::async_runtime::spawn_blocking(move || swap_exe(&swap_target, &file))
@@ -210,8 +245,8 @@ async fn pick_folder(app: AppHandle) -> Answer<Option<String>> {
 fn catalog_image(app: &AppHandle, request: &Request<Vec<u8>>) -> Response<Vec<u8>> {
     let path = unquote(request.uri().path().trim_start_matches('/'));
     let image = app
-        .try_state::<Arc<Hub>>()
-        .and_then(|hub| path.split_once('/').and_then(|(game, file)| hub.image(game, file)));
+        .try_state::<Hubs>()
+        .and_then(|hubs| path.split_once('/').and_then(|(game, file)| hubs.get().image(game, file)));
     match image {
         Some((bytes, content_type)) => Response::builder().header(CONTENT_TYPE, content_type).body(bytes),
         None => Response::builder().status(404).body(Vec::new()),
@@ -313,12 +348,12 @@ fn desktop_run() {
             .open_path(path.to_string_lossy(), None::<&str>)
             .map_err(|error| HubError(format!("Could not open {}: {error}", path.display())))
     });
-    let hub = Arc::new(Hub::new(options));
+    let hub = Hub::new(options);
 
     let result = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .manage(hub)
+        .manage(Hubs::ready(hub))
         .register_uri_scheme_protocol("tokicatalog", |context, request| catalog_image(context.app_handle(), &request))
         .on_page_load(|_, payload| {
             if matches!(payload.event(), PageLoadEvent::Finished) {
@@ -372,34 +407,41 @@ impl toki_hub_core::device::Device for AppDevice {
     }
 }
 
+/// The hub on a phone (made by the first command: see `Hubs`).
+#[cfg(mobile)]
+fn mobile_hub(app: AppHandle) -> Hub {
+    // The app's own files: where Android's installer can be shown the downloaded APKs
+    let files = tauri_plugin_tokidevice::phone(&app)
+        .and_then(|phone| phone.folders().ok())
+        .map(|folders| PathBuf::from(folders.files))
+        .or_else(|| app.path().app_data_dir().ok())
+        .unwrap_or_else(|| PathBuf::from("."));
+    let data_dir = files.join("hub");
+    log::start(&data_dir.join("logs").join("hub.log"));
+    log::line(&format!("Toki Hub {} starting on Android (data: {})", env!("CARGO_PKG_VERSION"), data_dir.display()));
+    let mut options = HubOptions::new(catalog_dirs(&data_dir), data_dir);
+    options.hub_version = env!("CARGO_PKG_VERSION").to_string();
+    options.updates = Some(UpdateSource {
+        repo: UPDATE_REPO.into(),
+        tag_prefix: UPDATE_TAG_PREFIX.into(),
+        asset_suffix: UPDATE_ASSET_SUFFIX.into(),
+    });
+    options.opener = Arc::new(|path: &Path| Err(HubError(format!("A phone can't open {}.", path.display()))));
+    #[cfg(target_os = "android")]
+    {
+        options.device = Some(Arc::new(AppDevice(app.clone())));
+    }
+    Hub::new(options)
+}
+
 #[cfg(mobile)]
 fn mobile_run() {
     let result = tauri::Builder::default()
         .plugin(tauri_plugin_tokidevice::init())
         .register_uri_scheme_protocol("tokicatalog", |context, request| catalog_image(context.app_handle(), &request))
         .setup(|app| {
-            // The app's own files: where Android's installer can be shown the downloaded APKs
-            let files = tauri_plugin_tokidevice::phone(app.handle())
-                .and_then(|phone| phone.folders().ok())
-                .map(|folders| PathBuf::from(folders.files))
-                .or_else(|| app.path().app_data_dir().ok())
-                .unwrap_or_else(|| PathBuf::from("."));
-            let data_dir = files.join("hub");
-            log::start(&data_dir.join("logs").join("hub.log"));
-            log::line(&format!("Toki Hub {} starting on Android (data: {})", env!("CARGO_PKG_VERSION"), data_dir.display()));
-            let mut options = HubOptions::new(catalog_dirs(&data_dir), data_dir);
-            options.hub_version = env!("CARGO_PKG_VERSION").to_string();
-            options.updates = Some(UpdateSource {
-                repo: UPDATE_REPO.into(),
-                tag_prefix: UPDATE_TAG_PREFIX.into(),
-                asset_suffix: UPDATE_ASSET_SUFFIX.into(),
-            });
-            options.opener = Arc::new(|path: &Path| Err(HubError(format!("A phone can't open {}.", path.display()))));
-            #[cfg(target_os = "android")]
-            {
-                options.device = Some(Arc::new(AppDevice(app.handle().clone())));
-            }
-            app.manage(Arc::new(Hub::new(options)));
+            let handle = app.handle().clone();
+            app.manage(Hubs::later(move || mobile_hub(handle)));
             Ok(())
         })
         .invoke_handler(commands())
