@@ -10,6 +10,23 @@
   "changelog": { "repo": "Rowstar10/Hu-Taong", "path": "CHANGELOG.md" },
   "versions": [
     {
+      "version": "1.6",
+      "date": "2026-11-12",
+      "notes": "Power-up fixes and changes, from a review of every power-up.",
+      "builds": [
+        {
+          "platform": "any",
+          "source": {
+            "type": "github-archive",
+            "repo": "Rowstar10/Hu-Taong",
+            "ref": "ca9dbfe0cc35f02f664a2ce0868ee2e49e2c6751"
+          },
+          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
+          "note": "Runs from source with Python 3.12 and pygame."
+        }
+      ]
+    },
+    {
       "version": "1.5",
       "date": "2026-11-11",
       "notes": "Smoother online play, and hits off the joining player's paddle that look the same on both screens.",
