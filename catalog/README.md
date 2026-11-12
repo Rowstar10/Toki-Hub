@@ -96,10 +96,13 @@ Each version installs into its own folder, so any number of versions can be inst
 
 | `type` | Fields | Use it for |
 | --- | --- | --- |
-| `github-release` | `repo`, `tag`, `asset`, optional `sha256` | A file attached to a GitHub release. Works with private repos once a token is set in Settings. |
+| `github-release` | `repo`, `tag`, `asset`, optional `sha256` | A file attached to a GitHub release. |
 | `github-archive` | `repo`, `ref` (commit, tag or branch) | The repository's source code as it was at `ref`. Pin a commit so the version never changes. |
 | `url` | `url`, optional `sha256`, `filename` | Any direct download link. |
 | `local` | `path`, optional `sha256` | A folder, `.zip` or file on this computer (absolute, or relative to the game's catalog folder). |
+
+GitHub sources from **public** repositories need no token. Private repositories need a GitHub token in
+Settings (or the repository made public).
 
 Downloads ending in `.zip` are unpacked. If everything in the zip sits in one top folder (as in GitHub
 source zips), that folder is skipped, so `main.py` ends up directly in the version's folder. Any other

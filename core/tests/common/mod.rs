@@ -209,6 +209,7 @@ impl World {
     pub fn hub(&self) -> Hub {
         let mut options = HubOptions::new(vec![self.catalog()], self.data());
         options.github_api = self.web.base.clone();
+        options.github_web = self.web.base.clone();
         options.platform = "windows".into();
         let hub = Hub::new(options);
         if let Some(python) = python() {

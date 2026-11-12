@@ -14,6 +14,7 @@ const ICON_PATHS = {
   warning: '<path d="M12 4 2.8 19.5h18.4zM12 10v4.5M12 17.2v.3"/>',
   source: '<path d="M7 18.5a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 9.5a4.5 4.5 0 0 1-.5 9z"/>',
   info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8v.2"/>',
+  update: '<path d="M12 20V8.5m0 0-5 5M12 8.5l5 5M5 4.5h14"/>',
 };
 
 const PLATFORM_NAMES = { windows: "Windows", macos: "macOS", linux: "Linux", android: "Android", any: "any platform" };
@@ -35,7 +36,7 @@ const ui = {
 // Each command's argument names, in the order the calls below pass them (see src-tauri/src/main.rs).
 const COMMAND_ARGS = {
   state: [], poll: ["afterEvent"], reload: [], changelog: ["gameId"],
-  install: ["gameId", "version"], cancel: ["taskId"], uninstall: ["gameId", "version"],
+  install: ["gameId", "version"], update_game: ["gameId"], cancel: ["taskId"], uninstall: ["gameId", "version"],
   launch: ["gameId", "version"], stop: ["gameId", "version"],
   open_folder: ["gameId", "version"], open_log: ["gameId", "version"], open_place: ["which"],
   save_settings: ["changes"], clear_token: [], pick_folder: [],
@@ -131,6 +132,8 @@ const onPhone = () => Boolean(ui.data?.android);
 const gameById = (id) => games().find((g) => g.id === id);
 const installedInfo = (gameId, version) => ui.data.installed[gameId]?.[version];
 const isRunning = (gameId, version) => ui.data.running.some((r) => r.game_id === gameId && r.version === version);
+// {from, to} when a newer version of an installed game is out (the hub works it out), otherwise null.
+const gameUpdate = (gameId) => ui.data.game_updates?.[gameId] || null;
 
 function taskFor(gameId, version) {
   return ui.data.tasks.find((t) => t.game_id === gameId && t.version === version);
@@ -162,7 +165,7 @@ function gameStatus(game) {
   return { text: "Not installed", cls: "" };
 }
 
-const taskVerb = (task) => (task.status === "installing" ? "Installing" : "Downloading");
+const taskVerb = (task) => (task.replaces ? "Updating to" : task.status === "installing" ? "Installing" : "Downloading");
 
 function progressText(task, short = false) {
   if (task.status === "queued") return short ? "…" : "Preparing…";
@@ -179,7 +182,7 @@ function progressText(task, short = false) {
 function render(force = false) {
   if (!ui.data) return;
   const key = JSON.stringify([ui.gameId, ui.versionFor, ui.data.installed, ui.data.running.map((r) => [r.game_id, r.version]),
-    ui.data.tasks.map((t) => [t.id, t.status]), ui.data.games.length, ui.data.problems.length]);
+    ui.data.tasks.map((t) => [t.id, t.status]), ui.data.games.length, ui.data.problems.length, ui.data.game_updates]);
   if (!force && key === ui.renderKey) return updateProgress();
   ui.renderKey = key;
   renderLibrary();
@@ -191,6 +194,8 @@ function renderLibrary() {
   document.getElementById("lib-count").textContent = games().length;
   list.replaceChildren(...games().map((game) => {
     const status = gameStatus(game);
+    const update = gameUpdate(game.id);
+    const updating = update && activeTask(game.id, update.to);   // the status line says so instead
     return el("li", {},
       el("button", {
         type: "button", class: `game-card${game.id === ui.gameId ? " selected" : ""}`,
@@ -200,7 +205,9 @@ function renderLibrary() {
       gameIcon(game),
       el("span", { class: "game-card-text" },
         el("span", { class: "game-card-title", text: game.title }),
-        el("span", { class: `game-card-status ${status.cls}`, text: status.text, "data-status-for": game.id }))));
+        el("span", { class: `game-card-status ${status.cls}`, text: status.text, "data-status-for": game.id })),
+      update && !updating ? el("span", { class: "card-update", title: `Update available: ${vlabel(update.to)}` },
+        el("span", {}, icon("update"), "Update")) : null));
   }));
 
   const problems = document.getElementById("problems");
@@ -239,6 +246,7 @@ function renderDetail() {
         el("h1", { class: "game-title", text: game.title }),
         game.tagline ? el("p", { class: "tagline", text: game.tagline }) : null,
         game.tags.length ? el("div", { class: "tags" }, game.tags.map((t) => el("span", { class: "tag" }, el("span", { text: t })))) : null)),
+    ...[updateBanner(game)].filter(Boolean),   // (replaceChildren would show a null as the text "null")
     el("section", { class: "panel action-bar" }, actionBar(game, version)),
     el("div", { class: "columns" },
       el("div", { class: "stack" },
@@ -249,6 +257,34 @@ function renderDetail() {
           game.developer ? el("div", { class: "developer", text: `By ${game.developer}` }) : null)),
       versionsPanel(game, version)));
   detail.scrollTop = scroll;
+}
+
+// The gold "update available" banner above the action bar, while a newer version is out.
+function updateBanner(game) {
+  const update = gameUpdate(game.id);
+  if (!update) return null;
+  const from = vlabel(update.from);
+  const to = vlabel(update.to);
+  const task = activeTask(game.id, update.to);
+  const blocked = !onPhone() && isRunning(game.id, update.from);
+  const what = onPhone()
+    ? `You have ${from}. ${to} installs as its own app; ${from} stays until you uninstall it.`
+    : `You have ${from}. Updating installs ${to} and removes ${from}.`;
+  const action = task
+    ? [el("div", { class: "progress", "data-task-id": task.id },
+        el("div", { class: "progress-top" }, el("span", { class: "progress-label", text: `${taskVerb(task)} ${to}` }),
+          el("span", { class: "progress-text", text: progressText(task) })),
+        el("div", { class: "progress-track" }, el("div", { class: "progress-fill" }))),
+      button("Cancel", { iconName: "x", onclick: () => cancelTask(task) })]
+    : [button(`Update to ${to}`, { kind: "update", iconName: "update", onclick: () => updateGame(game), disabled: blocked,
+        title: blocked ? `Close ${from} first` : null })];
+  return el("section", { class: "panel update-banner" },
+    el("div", { class: "update-banner-icon" }, icon("update")),
+    el("div", { class: "update-banner-text" },
+      el("span", { class: "update-banner-label", text: "Update available" }),
+      el("span", { class: "update-banner-title", text: `${game.title} ${to} is out!` }),
+      el("span", { class: "update-banner-sub", text: blocked ? `Close ${from} to update. ${what}` : what })),
+    el("div", { class: "update-banner-action" }, action));
 }
 
 function actionBar(game, version) {
@@ -371,6 +407,7 @@ function plainText(text) {
 
 function versionsPanel(game, selected) {
   const latest = game.versions[0];
+  const update = gameUpdate(game.id);
   return el("section", { class: "panel" },
     el("h2", { class: "section-title" }, "Versions", el("span", { class: "count", text: game.versions.length })),
     game.versions.length === 0 ? el("p", { class: "muted", text: "No versions in the catalog yet." }) :
@@ -380,6 +417,7 @@ function versionsPanel(game, selected) {
         if (isRunning(game.id, v.version)) badges.push(["Running", "running"]);
         else if (activeTask(game.id, v.version)) badges.push(["Downloading", "busy"]);
         else if (installedInfo(game.id, v.version)) badges.push(["Installed", "installed"]);
+        else if (update && v.version === update.to) badges.push(["Update", "update"]);
         if (!v.build) badges.push([`No ${platformName(ui.data.platform)} build`, "unavailable"]);
         return el("li", {}, el("button", {
           type: "button", class: `version-row${v === selected ? " selected" : ""}`,
@@ -417,7 +455,9 @@ function selectGame(id) {
   store("game", id);
   render();
   const game = gameById(id);
-  if (game) Toki.say("select", { t: game.title });
+  const update = gameUpdate(id);
+  if (game && update) Toki.say("gameUpdateAvailable", { t: game.title, v: vlabel(update.to) });
+  else if (game) Toki.say("select", { t: game.title });
 }
 
 async function installGame(game, version) {
@@ -425,6 +465,14 @@ async function installGame(game, version) {
   if (!task) return;
   ui.taskStatus[task.id] = task.status;
   Toki.say("installStart", { t: game.title, v: vlabel(version) });
+  refreshSoon(0);
+}
+
+async function updateGame(game) {
+  const task = await attempt(() => api("update_game", game.id), `Could not update ${game.title}`);
+  if (!task) return;
+  ui.taskStatus[task.id] = task.status;
+  Toki.say("gameUpdateStart", { t: game.title, v: vlabel(task.version) });
   refreshSoon(0);
 }
 
@@ -485,7 +533,8 @@ async function poll() {
   try {
     const update = await api("poll", ui.lastEvent);
     setConnected(true);
-    Object.assign(ui.data, { installed: update.installed, tasks: update.tasks, running: update.running, update: update.update });
+    Object.assign(ui.data, { installed: update.installed, game_updates: update.game_updates, tasks: update.tasks,
+      running: update.running, update: update.update });
     noticeTaskChanges();
     for (const event of update.events) handleEvent(event);
     render();
@@ -511,11 +560,19 @@ function noticeTaskChanges() {
       // Android's installer is up now; the game shows as installed once the player confirms
       toast({ kind: "success", title: `${task.title} ${vlabel(task.version)} downloaded`, text: "Tap Install in Android's prompt to finish." });
       Toki.say("installDone", vars);
+    } else if (task.status === "done" && task.replaces) {
+      // An update: show the new version, which replaced the old one
+      ui.versionFor[task.game_id] = task.version;
+      const title = `${task.title} updated to ${vlabel(task.version)}`;
+      if (task.warning) toast({ kind: "error", title, text: task.warning, sticky: true });
+      else toast({ kind: "success", title, text: `${vlabel(task.replaces)} was removed. Ready to launch.` });
+      Toki.say("gameUpdated", { ...vars, o: vlabel(task.replaces) });
     } else if (task.status === "done") {
       toast({ kind: "success", title: `${task.title} ${vlabel(task.version)} installed`, text: "Ready to launch." });
       Toki.say("installDone", vars);
     } else if (task.status === "error") {
-      toast({ kind: "error", title: `Could not install ${task.title} ${vlabel(task.version)}`, text: task.error, sticky: true });
+      const failed = task.replaces ? `Could not update ${task.title} to` : `Could not install ${task.title}`;
+      toast({ kind: "error", title: `${failed} ${vlabel(task.version)}`, text: task.error, sticky: true });
       Toki.say("installError", vars);
     } else if (task.status === "cancelled") {
       Toki.say("installCancelled", vars);
@@ -765,8 +822,13 @@ async function start() {
     toast({ kind: "error", title: "Toki Hub is not responding", text: error.message, sticky: true });
     return;
   }
+  const updates = Object.entries(ui.data.game_updates || {});
   if (ui.data.just_updated) Toki.say("updated", { v: ui.data.hub_version });
   else if (ui.data.problems.length) Toki.say("problems", { n: ui.data.problems.length });
+  else if (updates.length === 1) {
+    const [gameId, update] = updates[0];
+    Toki.say("gameUpdateAvailable", { t: gameById(gameId)?.title || gameId, v: vlabel(update.to) });
+  } else if (updates.length > 1) Toki.say("gameUpdatesWaiting", { n: updates.length });
   else if (!ui.data.games.length) Toki.say("empty");
   else Toki.say("greet");
   renderUpdate();

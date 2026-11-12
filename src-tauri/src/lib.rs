@@ -142,6 +142,11 @@ async fn install(hub: HubState<'_>, game_id: String, version: String) -> Answer<
 }
 
 #[tauri::command]
+async fn update_game(hub: HubState<'_>, game_id: String) -> Answer<Value> {
+    work(&hub, move |hub| hub.update_game(&game_id)).await
+}
+
+#[tauri::command]
 async fn cancel(hub: HubState<'_>, task_id: String) -> Answer<bool> {
     work(&hub, move |hub| Ok(hub.cancel(&task_id))).await
 }
@@ -374,7 +379,7 @@ fn desktop_run() {
 
 fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Sync + 'static {
     tauri::generate_handler![
-        state, poll, reload, changelog, install, cancel, uninstall, launch, stop,
+        state, poll, reload, changelog, install, update_game, cancel, uninstall, launch, stop,
         open_folder, open_log, open_place, save_settings, clear_token, pick_folder,
         check_for_updates, download_update, apply_update
     ]

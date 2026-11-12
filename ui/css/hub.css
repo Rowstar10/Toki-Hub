@@ -131,6 +131,13 @@ code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-siz
 .game-card-status.installed { color: var(--sky-600); }
 .game-card-status.running { color: var(--mint); }
 .game-card-status.busy { color: var(--sky-500); }
+/* a game with an update out: a small gold badge on its card */
+.card-update { flex: none; margin-left: auto; padding: 2px 8px 2px 6px; border-radius: 6px; transform: skewX(var(--skew));
+  background: linear-gradient(180deg, #fff3c4, var(--gold)); color: var(--gold-ink); box-shadow: 0 0 0 1px #e9c55a;
+  font-size: 11px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; animation: badge-glow 2.4s ease-in-out infinite; }
+.card-update > span { display: inline-flex; align-items: center; gap: 3px; transform: skewX(calc(var(--skew) * -1)); }
+.card-update svg { width: 12px; height: 12px; stroke-width: 3; }
+@keyframes badge-glow { 50% { box-shadow: 0 0 0 1px #e9c55a, 0 0 0 4px rgba(242, 217, 141, 0.55); } }
 
 .add-game { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; margin-top: 2px;
   border: 2px dashed var(--sky-300); border-radius: 14px; background: rgba(255, 255, 255, 0.35); color: var(--sky-600);
@@ -181,6 +188,29 @@ code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-siz
 .build-meta .note { color: var(--gold-ink); font-weight: 700; }
 .build-meta svg { width: 14px; height: 14px; vertical-align: -2px; margin-right: 4px; }
 
+/* "Update available": a gold banner above the action bar */
+.update-banner { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 14px 18px; margin-top: 16px;
+  padding: 16px 20px 16px 30px; background: linear-gradient(100deg, #fff8e0 0%, #fdf0c6 55%, #fbe5a1 100%);
+  box-shadow: var(--shadow), 0 0 0 2px var(--gold); }
+.update-banner::before { content: ""; position: absolute; left: 11px; top: 16px; bottom: 16px; width: 5px; border-radius: 3px;
+  background: #e2b93b; transform: skewX(var(--skew)); }
+.update-banner-icon { flex: none; width: 52px; height: 52px; display: grid; place-items: center; border-radius: 14px;
+  background: linear-gradient(180deg, #fff3c4, #f2d06a); color: var(--gold-ink);
+  box-shadow: 0 0 0 3px #fff, 0 6px 14px -6px rgba(201, 160, 40, 0.8); animation: lift 1.8s ease-in-out infinite; }
+.update-banner-icon svg { width: 28px; height: 28px; stroke-width: 2.4; }
+@keyframes lift { 50% { transform: translateY(-3px); } }
+.update-banner-text { flex: 1; min-width: 220px; display: flex; flex-direction: column; }
+.update-banner-label { font-size: 12px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: #a67d0e; }
+.update-banner-title { font-family: var(--display); font-style: italic; font-weight: 800; font-size: 24px; line-height: 1.15;
+  color: var(--navy); }
+.update-banner-sub { font-size: 13.5px; font-weight: 700; color: var(--gold-ink); }
+.update-banner-action { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.update-banner .progress { min-width: 300px; }
+.update-banner .progress-top { gap: 12px; color: var(--gold-ink); }
+.update-banner .progress-track { background: #fff8e0; box-shadow: inset 0 1px 2px rgba(166, 125, 14, 0.25); }
+.update-banner .progress-fill { background: repeating-linear-gradient(-45deg, #f2d06a 0 10px, #e2b93b 10px 20px);
+  background-size: 28px 28px; }
+
 /* Blue Archive style slanted buttons */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 18px;
   border: none; border-radius: 8px; transform: skewX(var(--skew)); font-weight: 800; cursor: pointer; white-space: nowrap;
@@ -196,6 +226,16 @@ code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-siz
 .btn-primary:not(:disabled):active { transform: skewX(var(--skew)) translateY(3px);
   box-shadow: 0 1px 0 var(--sky-700), 0 6px 14px -8px rgba(31, 148, 216, 0.8); }
 .modal .btn-primary { min-height: 42px; padding: 0 24px; font-size: 16px; }
+.btn-update { min-height: 56px; padding: 0 36px; font-family: var(--display); font-style: italic; font-size: 21px;
+  letter-spacing: 0.03em; color: var(--gold-ink); background: linear-gradient(180deg, #fff4c8 0%, #f6da7c 50%, #e8c253 100%);
+  box-shadow: 0 4px 0 #b8952f, 0 10px 22px -8px rgba(201, 160, 40, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  animation: gold-glow 2.4s ease-in-out infinite; }
+.btn-update svg { width: 22px; height: 22px; stroke-width: 2.6; }
+.btn-update:not(:disabled):hover { filter: brightness(1.05) saturate(1.1); }
+.btn-update:not(:disabled):active { transform: skewX(var(--skew)) translateY(3px); }
+.btn-update:disabled { animation: none; }
+@keyframes gold-glow { 50% { box-shadow: 0 4px 0 #b8952f, 0 10px 22px -8px rgba(201, 160, 40, 0.85),
+  inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 0 0 6px rgba(242, 217, 141, 0.55); } }
 .btn-ghost { color: var(--sky-700); background: var(--sky-100); }
 .btn-ghost:hover { background: var(--sky-200); }
 .btn-danger { color: #fff; background: var(--danger); box-shadow: 0 3px 0 #b53c51; }
@@ -256,6 +296,7 @@ code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-siz
 .badge-running { background: #e3f8f0; color: #1f8f69; }
 .badge-busy { background: var(--sky-500); color: #fff; }
 .badge-unavailable { background: #eef1f5; color: var(--ink-faint); }
+.badge-update { background: linear-gradient(180deg, #fff3c4, var(--gold)); color: var(--gold-ink); box-shadow: inset 0 0 0 1px #e9c55a; }
 
 .empty { display: grid; place-items: center; text-align: center; height: 100%; min-height: 360px; padding: 30px; }
 .empty img { width: 150px; margin-bottom: 14px; }
@@ -374,6 +415,12 @@ code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-siz
   .action-version { min-width: 0; }
   .action-main { flex-basis: 100%; }
   .action-main .btn-primary { flex: 1; }
+  .update-banner { padding: 14px 14px 14px 26px; gap: 12px; }
+  .update-banner-icon { width: 44px; height: 44px; }
+  .update-banner-title { font-size: 20px; }
+  .update-banner-text { min-width: 0; }
+  .update-banner-action { flex-basis: 100%; }
+  .update-banner-action .btn-update { flex: 1; }
   .progress { min-width: 0; max-width: none; flex-basis: 100%; }
   .progress-top { gap: 10px; }
   .progress-text { text-align: right; }

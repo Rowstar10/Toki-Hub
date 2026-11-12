@@ -1,8 +1,10 @@
 //! Turning a build's `source` into something the installer can fetch.
 //!
-//! GitHub sources go through the GitHub API, so they work for private repositories once a token is
-//! set in Settings (or the GITHUB_TOKEN environment variable). The token is never sent on to a
-//! redirect's host: ureq drops the Authorization header on every redirect.
+//! GitHub sources need no token when the repository is public: they are downloaded from GitHub's
+//! ordinary download links, which have no rate limit. Once a token is set in Settings (or the
+//! GITHUB_TOKEN environment variable), they go through the GitHub API instead, which also works for
+//! private repositories. The token is never sent on to a redirect's host: ureq drops the
+//! Authorization header on every redirect.
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -14,6 +16,8 @@ use crate::paths::{expand_home, safe_name};
 use crate::{fail, HubError, Result};
 
 pub const GITHUB_API: &str = "https://api.github.com";
+/// GitHub's website, for downloads from public repositories without a token.
+pub const GITHUB_WEB: &str = "https://github.com";
 pub const USER_AGENT: &str = concat!("TokiHub/", env!("CARGO_PKG_VERSION"));
 
 pub enum Plan {
@@ -40,6 +44,7 @@ type TokenGetter = Box<dyn Fn() -> String + Send + Sync>;
 pub struct SourceResolver {
     token: TokenGetter,
     github_api: String,
+    github_web: String,
     agent: ureq::Agent,
 }
 
@@ -62,8 +67,13 @@ pub fn http_agent() -> ureq::Agent {
 }
 
 impl SourceResolver {
-    pub fn new(token: TokenGetter, github_api: &str) -> SourceResolver {
-        SourceResolver { token, github_api: github_api.trim_end_matches('/').to_string(), agent: http_agent() }
+    pub fn new(token: TokenGetter, github_api: &str, github_web: &str) -> SourceResolver {
+        SourceResolver {
+            token,
+            github_api: github_api.trim_end_matches('/').to_string(),
+            github_web: github_web.trim_end_matches('/').to_string(),
+            agent: http_agent(),
+        }
     }
 
     pub fn agent(&self) -> &ureq::Agent {
@@ -95,18 +105,36 @@ impl SourceResolver {
                 Ok(Plan::Local(LocalFiles { path, sha256: sha256.clone() }))
             }
             Source::GithubArchive { repo, reference } => {
-                let mut headers = vec![("Accept", "application/vnd.github+json".to_string())];
-                headers.extend(self.auth());
+                let auth = self.auth();
+                let (url, headers) = if auth.is_empty() {
+                    (format!("{}/{repo}/archive/{}.zip", self.github_web, quote(reference)), Vec::new())
+                } else {
+                    let mut headers = vec![("Accept", "application/vnd.github+json".to_string())];
+                    headers.extend(auth);
+                    (format!("{}/repos/{repo}/zipball/{}", self.github_api, quote(reference)), headers)
+                };
                 let name = repo.split('/').nth(1).unwrap_or(repo);
                 Ok(Plan::Download(Download {
-                    url: format!("{}/repos/{repo}/zipball/{}", self.github_api, quote(reference)),
+                    url,
                     filename: format!("{name}-{}.zip", short_ref(reference)),
                     headers,
                     github_what: format!("source code of {repo} at '{reference}'"),
                     sha256: String::new(),
                 }))
             }
-            Source::GithubRelease { repo, tag, asset, sha256 } => self.release_asset(repo, tag, asset, sha256),
+            Source::GithubRelease { repo, tag, asset, sha256 } => {
+                if self.auth().is_empty() {
+                    Ok(Plan::Download(Download {
+                        url: format!("{}/{repo}/releases/download/{}/{}", self.github_web, quote(tag), quote(asset)),
+                        filename: asset.clone(),
+                        headers: Vec::new(),
+                        github_what: format!("file '{asset}' in release '{tag}' of {repo}"),
+                        sha256: sha256.clone(),
+                    }))
+                } else {
+                    self.release_asset(repo, tag, asset, sha256)
+                }
+            }
         }
     }
 
@@ -191,7 +219,10 @@ pub fn github_error(response: &ureq::http::Response<ureq::Body>, what: &str) -> 
     } else if code == 401 {
         "GitHub rejected the token in Settings. Check that it is correct and not expired.".to_string()
     } else if matches!(code, 403 | 404) {
-        format!("GitHub could not find the {what}. If the repository is private, add a GitHub token with access to it in Settings.")
+        format!(
+            "GitHub could not find the {what}. If the repository is private, make it public on GitHub, \
+             or add a GitHub token with access to it in Settings."
+        )
     } else {
         let reason = response.status().canonical_reason().unwrap_or("");
         format!("GitHub returned an error for the {what}: HTTP {code} {reason}")

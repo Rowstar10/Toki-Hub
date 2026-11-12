@@ -13,8 +13,9 @@ use crate::launcher::{system_opener, Launcher, Opener};
 use crate::paths::{expand_home, is_within, which};
 use crate::runtime::{Runtimes, PYPI};
 use crate::settings::Settings;
-use crate::sources::{http_agent, SourceResolver, GITHUB_API};
+use crate::sources::{http_agent, SourceResolver, GITHUB_API, GITHUB_WEB};
 use crate::updates::{UpdateSource, Updater};
+use crate::versions::version_key;
 use crate::{fail, Result};
 
 pub struct HubOptions {
@@ -25,6 +26,8 @@ pub struct HubOptions {
     pub catalog_dirs: Vec<PathBuf>,
     pub data_dir: PathBuf,
     pub github_api: String,
+    /// GitHub's website, for token-free downloads from public repositories.
+    pub github_web: String,
     /// Where uv (the Python installer) is downloaded from.
     pub pypi: String,
     pub platform: String,
@@ -44,6 +47,7 @@ impl HubOptions {
             catalog_dirs,
             data_dir,
             github_api: GITHUB_API.to_string(),
+            github_web: GITHUB_WEB.to_string(),
             pypi: PYPI.to_string(),
             platform: crate::paths::current_platform().to_string(),
             opener: system_opener(),
@@ -76,7 +80,11 @@ impl Hub {
         let data_dir = options.data_dir;
         let settings = Arc::new(Settings::load(&data_dir.join("settings.json"), &data_dir));
         let token_settings = settings.clone();
-        let resolver = Arc::new(SourceResolver::new(Box::new(move || token_settings.github_token()), &options.github_api));
+        let resolver = Arc::new(SourceResolver::new(
+            Box::new(move || token_settings.github_token()),
+            &options.github_api,
+            &options.github_web,
+        ));
         let launcher = Launcher::new(settings.clone(), data_dir.join("logs"), options.opener.clone());
         let watcher = launcher.clone();
         let runtimes = Arc::new(Runtimes::new(&data_dir, &options.pypi, http_agent()));
@@ -151,14 +159,35 @@ impl Hub {
 
     /// The parts of the state that change while the hub is open.
     pub fn poll(&self, after_event: u64) -> Value {
-        let installed = if self.device.is_some() { self.installed_apps() } else { self.installed_folders() };
+        let installed = self.installed();
+        let game_updates = self.game_updates(&installed);
         json!({
             "installed": installed,
+            "game_updates": game_updates,
             "tasks": self.installer.tasks(),
             "running": self.launcher.running(),
             "events": self.launcher.events_since(after_event),
             "update": self.updater.to_json(),
         })
+    }
+
+    /// {game_id: {version: info}} for every installed version.
+    fn installed(&self) -> Map<String, Value> {
+        if self.device.is_some() { self.installed_apps() } else { self.installed_folders() }
+    }
+
+    /// {game_id: {"from": newest installed version, "to": the version to update to}}, for each
+    /// installed game with a newer version out for this platform.
+    fn game_updates(&self, installed: &Map<String, Value>) -> Map<String, Value> {
+        let catalog = self.catalog();
+        catalog
+            .games
+            .iter()
+            .filter_map(|game| {
+                let (from, to) = update_for(game, installed.get(&game.id), &self.platform)?;
+                Some((game.id.clone(), json!({"from": from, "to": to})))
+            })
+            .collect()
     }
 
     /// Installed versions, from the install folder.
@@ -237,6 +266,23 @@ impl Hub {
         let catalog = self.catalog();
         let game = catalog.game(game_id)?;
         self.installer.start(game, game.version(version)?)
+    }
+
+    /// Update a game to its newest version. On a computer, the version it replaces is removed once
+    /// the new one is in place. On Android each version is its own app, so the old one stays until
+    /// the player uninstalls it.
+    pub fn update_game(&self, game_id: &str) -> Result<Value> {
+        let catalog = self.catalog();
+        let game = catalog.game(game_id)?;
+        let installed = self.installed();
+        let Some((from, to)) = update_for(game, installed.get(game_id), &self.platform) else {
+            return fail(format!("{} is already up to date.", game.title));
+        };
+        let version = game.version(&to)?;
+        if self.device.is_some() {
+            return self.installer.start(game, version);
+        }
+        self.installer.start_update(game, version, &from)
     }
 
     pub fn cancel(&self, task_id: &str) -> bool {
@@ -403,6 +449,18 @@ impl Hub {
             }).collect::<Vec<_>>(),
         })
     }
+}
+
+/// A game's update, if one is out: (its newest installed version, the newest version with a build
+/// for `platform`), when the second is newer and not installed yet.
+fn update_for(game: &Game, installed: Option<&Value>, platform: &str) -> Option<(String, String)> {
+    let installed = installed?.as_object()?;
+    let newest_installed = installed.keys().max_by(|a, b| version_key(a).cmp(&version_key(b)))?;
+    let newest = game.versions.iter().find(|v| v.build_for(platform).is_some())?; // newest first
+    if installed.contains_key(&newest.version) || version_key(&newest.version) <= version_key(newest_installed) {
+        return None;
+    }
+    Some((newest_installed.clone(), newest.version.clone()))
 }
 
 fn build_json(build: &Build) -> Value {

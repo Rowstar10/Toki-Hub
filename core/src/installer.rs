@@ -43,10 +43,14 @@ pub struct Task {
     pub game_id: String,
     pub title: String,
     pub version: String,
+    /// For an update: the installed version it replaces, removed once the new one is in place.
+    pub replaces: String,
     status: Mutex<&'static str>,
     /// What is happening now, while installing ("Installing pygame…").
     stage: Mutex<String>,
     error: Mutex<String>,
+    /// Something that went wrong after the new version was installed (it still counts as done).
+    warning: Mutex<String>,
     received: AtomicU64,
     total: AtomicU64,
     cancel_requested: AtomicBool,
@@ -72,6 +76,7 @@ impl Task {
     pub fn to_json(&self) -> Value {
         json!({
             "id": self.id, "game_id": self.game_id, "title": self.title, "version": self.version,
+            "replaces": self.replaces, "warning": *self.warning.lock().unwrap(),
             "status": self.status(), "stage": *self.stage.lock().unwrap(), "error": *self.error.lock().unwrap(),
             "received": self.received.load(Ordering::Relaxed), "total": self.total.load(Ordering::Relaxed),
         })
@@ -160,6 +165,19 @@ impl Installer {
     }
 
     pub fn start(&self, game: &Game, version: &Version) -> Result<Value> {
+        self.begin(game, version, None)
+    }
+
+    /// Install `version`, then remove the installed version `replaces` once the new one is in place.
+    /// If anything fails before that, `replaces` stays installed.
+    pub fn start_update(&self, game: &Game, version: &Version, replaces: &str) -> Result<Value> {
+        if (self.is_running)(&game.id, replaces) {
+            return fail(format!("Close {} {replaces} first: the update replaces it.", game.title));
+        }
+        self.begin(game, version, Some(replaces.to_string()))
+    }
+
+    fn begin(&self, game: &Game, version: &Version, replaces: Option<String>) -> Result<Value> {
         let Some(build) = version.build_for(&self.platform).cloned() else {
             return fail(format!("{} {} has no build for {}.", game.title, version.version, self.platform));
         };
@@ -177,9 +195,11 @@ impl Installer {
                 game_id: game.id.clone(),
                 title: game.title.clone(),
                 version: version.version.clone(),
+                replaces: replaces.clone().unwrap_or_default(),
                 status: Mutex::new("queued"),
                 stage: Mutex::new(String::new()),
                 error: Mutex::new(String::new()),
+                warning: Mutex::new(String::new()),
                 received: AtomicU64::new(0),
                 total: AtomicU64::new(0),
                 cancel_requested: AtomicBool::new(false),
@@ -193,6 +213,10 @@ impl Installer {
             version: version.clone(),
             build,
             target: self.version_dir(&game.id, &version.version),
+            replaces: replaces.map(|name| {
+                let folder = self.version_dir(&game.id, &name);
+                (name, folder)
+            }),
             downloads_dir: self.downloads_dir.clone(),
             install_log: self.logs_dir.join(format!("{}-{}-install.log", game.id, safe_name(&version.version))),
             settings: self.settings.clone(),
@@ -266,6 +290,8 @@ struct Job {
     version: Version,
     build: Build,
     target: PathBuf,
+    /// For an update: the old version's name and folder, removed after a successful install.
+    replaces: Option<(String, PathBuf)>,
     downloads_dir: PathBuf,
     install_log: PathBuf,
     settings: Arc<Settings>,
@@ -289,12 +315,35 @@ impl Job {
             let _ = std::fs::remove_file(file);
         }
         match result {
-            Ok(()) => self.task.set_status("done"),
+            Ok(()) => {
+                self.remove_replaced_version();
+                self.task.set_status("done");
+            }
             Err(error) if error.0 == CANCELLED => self.task.set_status("cancelled"),
             Err(error) => {
                 *self.task.error.lock().unwrap() = error.0;
                 self.task.set_status("error");
             }
+        }
+    }
+
+    /// After an update: remove the version it replaces. The new version is already in place, so a
+    /// problem here is only a warning, and the old version is then left as it was.
+    fn remove_replaced_version(&self) {
+        let Some((name, folder)) = &self.replaces else { return };
+        if *folder == self.target || !folder.join(MARKER).is_file() {
+            return;
+        }
+        let title = &self.game.title;
+        if (self.is_running)(&self.game.id, name) {
+            *self.task.warning.lock().unwrap() =
+                format!("{title} {name} was running, so it was kept. Uninstall it from its page once it's closed.");
+            return;
+        }
+        self.task.set_stage(format!("Removing {name}…"));
+        if let Err(error) = remove_tree(folder) {
+            *self.task.warning.lock().unwrap() =
+                format!("{title} {name} could not be removed ({error}). Uninstall it from its page.");
         }
     }
 

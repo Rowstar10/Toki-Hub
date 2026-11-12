@@ -160,18 +160,20 @@ fn bad_builds_are_dropped_and_typos_flagged() {
         version_launching("1.2", json!({"type": "url", "url": "https://x/y.zip"}), json!({"type": "executable", "path": "../evil.exe"})),
         version_with("1.3", json!({"type": "url", "url": "https://x/y.zip", "sha256": "abc"})),
         version_with("1.4", json!({"type": "github-release", "repo": "not a repo", "tag": "v1", "asset": "a.zip"})),
+        version_with("1.5", json!({"type": "github-release", "repo": "Owner/Game", "tag": "v1", "asset": "../evil.zip"})),
     ]));
     let catalog = Catalog::load(&[world.catalog()]);
     let game = catalog.game("game").unwrap();
     let names: Vec<&str> = game.versions.iter().map(|v| v.version.as_str()).collect();
-    assert_eq!(names, ["1.4", "1.3", "1.2", "1.1", "1.0"], "newest first, the duplicate 1.1 dropped");
+    assert_eq!(names, ["1.5", "1.4", "1.3", "1.2", "1.1", "1.0"], "newest first, the duplicate 1.1 dropped");
     assert_eq!(game.version("1.1").unwrap().builds.len(), 1, "a typo does not drop the build");
-    for version in ["1.0", "1.2", "1.3", "1.4"] {
+    for version in ["1.0", "1.2", "1.3", "1.4", "1.5"] {
         assert!(game.version(version).unwrap().builds.is_empty(), "{version} should have lost its build");
     }
     let problems = catalog.problems.join("\n");
     for expected in ["'type' must be one of url, github-release, github-archive, local", "unknown field 'lauch'",
-                     "clashes with '1.1'", "'path' must be relative", "'sha256' must be 64", "'repo' must look like"] {
+                     "clashes with '1.1'", "'path' must be relative", "'sha256' must be 64", "'repo' must look like",
+                     "'asset' must be a file name"] {
         assert!(problems.contains(expected), "missing {expected:?} in:\n{problems}");
     }
 }
@@ -385,33 +387,166 @@ fn private_github_release_keeps_the_token_off_redirects() {
 }
 
 #[test]
+fn public_github_release_needs_no_token() {
+    let world = World::new();
+    world.web.redirect("/Owner/Game/releases/download/v1.0/Game-windows.zip", "/storage/public.zip");
+    world.web.file("/storage/public.zip", zip_bytes(GAME_FILES, Some("Game")));
+    write_game(&world.catalog(), "game", &game_with(vec![version_with("1.0",
+        json!({"type": "github-release", "repo": "Owner/Game", "tag": "v1.0", "asset": "Game-windows.zip"}))]));
+    let hub = world.hub();
+    let task = install_and_wait(&hub, "game", "1.0");
+    assert_eq!(task["status"], "done", "{task}");
+    assert!(hub.installer.version_dir("game", "1.0").join("main.py").is_file());
+    let download = &world.web.headers_for("/Owner/Game/releases/download/v1.0/Game-windows.zip")[0];
+    assert!(!download.contains_key("authorization"), "no token configured, so none should be sent");
+    assert!(world.web.headers_for("/repos/Owner/Game/releases/tags/v1.0").is_empty(), "no API call (and so no rate limit) without a token");
+}
+
+#[test]
 fn github_problems_are_explained() {
     let world = World::new();
     world.web.json("/repos/Owner/Game/releases/tags/v1.0", json!({"assets": [{"name": "Other.zip", "url": "x"}]}));
     write_game(&world.catalog(), "game", &game_with(vec![
         version_with("1.0", json!({"type": "github-release", "repo": "Owner/Game", "tag": "v1.0", "asset": "Game.zip"})),
         version_with("2.0", json!({"type": "github-release", "repo": "Owner/Private", "tag": "v2.0", "asset": "Game.zip"})),
+        version_with("3.0", json!({"type": "github-archive", "repo": "Owner/Private", "ref": "main"})),
     ]));
     let hub = world.hub();
+    // Without a token, GitHub answers "not found" for a private repository.
+    for version in ["2.0", "3.0"] {
+        let task = install_and_wait(&hub, "game", version);
+        assert!(task["error"].as_str().unwrap().contains("make it public on GitHub, or add a GitHub token"), "{task}");
+    }
+    // With a token, the API says what the release does have.
+    hub.save_settings(&json!({"github_token": "secret-token"})).unwrap();
     let task = install_and_wait(&hub, "game", "1.0");
     assert!(task["error"].as_str().unwrap().contains("no file named 'Game.zip' (it has: Other.zip)"), "{task}");
     let task = install_and_wait(&hub, "game", "2.0");
-    assert!(task["error"].as_str().unwrap().contains("If the repository is private, add a GitHub token"), "{task}");
+    assert!(task["error"].as_str().unwrap().contains("add a GitHub token"), "{task}");
 }
 
 #[test]
 fn github_source_archive() {
     let world = World::new();
     let reference = "db6da17c8519a61731f6cffb39da2e2cd2730935";
-    world.web.redirect(&format!("/repos/Owner/Game/zipball/{reference}"), "/codeload/archive.zip");
-    world.web.file("/codeload/archive.zip", zip_bytes(GAME_FILES, Some("Owner-Game-db6da17")));
+    // A public repository, no token: GitHub's ordinary download link.
+    world.web.redirect(&format!("/Owner/Game/archive/{reference}.zip"), "/codeload/public.zip");
+    world.web.file("/codeload/public.zip", zip_bytes(GAME_FILES, Some("Game-db6da17")));
+    // With a token: the API, which works for private repositories too.
+    world.web.redirect(&format!("/repos/Owner/Game/zipball/{reference}"), "/codeload/private.zip");
+    world.web.file("/codeload/private.zip", zip_bytes(GAME_FILES, Some("Owner-Game-db6da17")));
     write_game(&world.catalog(), "game", &game_with(vec![version_with("1.0",
         json!({"type": "github-archive", "repo": "Owner/Game", "ref": reference}))]));
     let hub = world.hub();
     assert_eq!(install_and_wait(&hub, "game", "1.0")["status"], "done");
     assert!(hub.installer.version_dir("game", "1.0").join("main.py").is_file());
+    let public = &world.web.headers_for(&format!("/Owner/Game/archive/{reference}.zip"))[0];
+    assert!(!public.contains_key("authorization"), "no token configured, so none should be sent");
+    assert!(world.web.headers_for(&format!("/repos/Owner/Game/zipball/{reference}")).is_empty(), "no API call without a token");
+
+    hub.save_settings(&json!({"github_token": "secret-token"})).unwrap();
+    assert_eq!(install_and_wait(&hub, "game", "1.0")["status"], "done");
     let api = &world.web.headers_for(&format!("/repos/Owner/Game/zipball/{reference}"))[0];
-    assert!(!api.contains_key("authorization"), "no token configured, so none should be sent");
+    assert_eq!(api.get("authorization").map(String::as_str), Some("Bearer secret-token"));
+    assert!(!world.web.headers_for("/codeload/private.zip")[0].contains_key("authorization"), "token must not follow the redirect");
+}
+
+// ---------- Game updates ----------
+
+/// Versions 0.9, 1.0 and 2.0 for every computer, and 2.1 for macOS only (not this computer).
+fn updatable_game(world: &World) -> toki_hub_core::Hub {
+    world.web.file("/game.zip", zip_bytes(GAME_FILES, None));
+    let mut mac_only = version_with("2.1", url_source(world, "/game.zip"));
+    mac_only["builds"][0]["platform"] = json!("macos");
+    write_game(&world.catalog(), "game", &game_with(vec![
+        version_with("0.9", url_source(world, "/game.zip")),
+        version_with("1.0", url_source(world, "/game.zip")),
+        version_with("2.0", url_source(world, "/game.zip")),
+        mac_only,
+    ]));
+    world.hub()
+}
+
+/// Wait for a task the hub started (an install or an update) to finish.
+fn wait_task(hub: &toki_hub_core::Hub, task: serde_json::Value) -> serde_json::Value {
+    let id = task["id"].as_str().unwrap().to_string();
+    wait_for("the task", || {
+        hub.installer.tasks().into_iter().find(|t| {
+            t["id"] == id.as_str() && !matches!(t["status"].as_str(), Some("queued" | "downloading" | "installing"))
+        })
+    })
+}
+
+#[test]
+fn updates_are_offered_for_installed_games_with_a_newer_version() {
+    let world = World::new();
+    let hub = updatable_game(&world);
+    assert_eq!(hub.poll(0)["game_updates"], json!({}), "nothing installed, nothing to update");
+    assert!(hub.update_game("game").is_err());
+
+    install_and_wait(&hub, "game", "1.0");
+    assert_eq!(hub.poll(0)["game_updates"], json!({"game": {"from": "1.0", "to": "2.0"}}), "2.1 is not for this computer");
+    assert_eq!(hub.state()["game_updates"]["game"]["to"], "2.0", "the first state has it too");
+
+    install_and_wait(&hub, "game", "0.9");
+    assert_eq!(hub.poll(0)["game_updates"]["game"]["from"], "1.0", "an update replaces the newest installed version");
+
+    install_and_wait(&hub, "game", "2.0");
+    assert_eq!(hub.poll(0)["game_updates"], json!({}), "the newest version is installed");
+    assert!(hub.update_game("game").unwrap_err().0.contains("already up to date"));
+}
+
+#[test]
+fn updating_installs_the_newest_version_and_removes_the_one_it_replaces() {
+    let world = World::new();
+    let hub = updatable_game(&world);
+    install_and_wait(&hub, "game", "0.9");
+    install_and_wait(&hub, "game", "1.0");
+    let started = hub.update_game("game").unwrap();
+    assert_eq!((started["version"].as_str(), started["replaces"].as_str()), (Some("2.0"), Some("1.0")));
+    let task = wait_task(&hub, started);
+    assert_eq!((task["status"].as_str(), task["warning"].as_str()), (Some("done"), Some("")), "{task}");
+    let installed: Vec<String> = hub.poll(0)["installed"]["game"].as_object().unwrap().keys().cloned().collect();
+    assert_eq!(installed, ["0.9", "2.0"], "1.0 is replaced; 0.9, which was kept on purpose, stays");
+    assert!(!hub.installer.version_dir("game", "1.0").exists());
+    assert_eq!(hub.poll(0)["game_updates"], json!({}));
+}
+
+#[test]
+fn a_failed_update_keeps_the_old_version() {
+    let world = World::new();
+    world.web.file("/game.zip", zip_bytes(GAME_FILES, None));
+    write_game(&world.catalog(), "game", &game_with(vec![
+        version_with("1.0", url_source(&world, "/game.zip")),
+        version_with("2.0", url_source(&world, "/missing.zip")),
+    ]));
+    let hub = world.hub();
+    install_and_wait(&hub, "game", "1.0");
+    let task = wait_task(&hub, hub.update_game("game").unwrap());
+    assert_eq!(task["status"], "error", "{task}");
+    assert!(hub.installer.version_dir("game", "1.0").join(MARKER).is_file(), "the old version must survive a failed update");
+    assert_eq!(hub.poll(0)["game_updates"]["game"]["to"], "2.0", "the update is still offered");
+}
+
+#[test]
+fn a_running_version_is_not_replaced() {
+    if python().is_none() {
+        return;
+    }
+    let world = World::new();
+    let build = world.dir.path().join("build");
+    std::fs::create_dir_all(&build).unwrap();
+    std::fs::write(build.join("main.py"), "import time\ntime.sleep(30)\n").unwrap();
+    let source = json!({"type": "local", "path": build.to_string_lossy()});
+    write_game(&world.catalog(), "game", &game_with(vec![version_with("1.0", source.clone()), version_with("2.0", source)]));
+    let hub = world.hub();
+    install_and_wait(&hub, "game", "1.0");
+    hub.launch("game", "1.0").unwrap();
+    let error = hub.update_game("game").unwrap_err();
+    assert!(error.0.contains("Close Test Game 1.0 first"), "{error}");
+    assert!(hub.installer.tasks().iter().all(|t| t["version"] != "2.0"), "nothing was started");
+    hub.stop("game", "1.0").unwrap();
+    wait_for("the game to exit", || hub.poll(0)["events"].as_array().unwrap().first().cloned());
 }
 
 // ---------- Launching ----------

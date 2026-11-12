@@ -533,6 +533,13 @@ fn load_source(source: Option<&Value>, place: &str, check: &mut Checker) -> Opti
         let lowered = field(&fields, "sha256").to_lowercase();
         fields.insert("sha256".into(), Value::String(lowered));
     }
+    if fields.contains_key("asset") {
+        let asset = field(&fields, "asset");
+        if asset.contains(['/', '\\']) || asset == "." || asset == ".." {
+            check.report(&place, "'asset' must be a file name, like \"Game-windows.zip\"");
+            return None;
+        }
+    }
     if fields.contains_key("filename") && safe_name(&field(&fields, "filename")) != field(&fields, "filename") {
         check.report(&place, "'filename' may only use letters, digits, '.', '_' and '-'");
         return None;

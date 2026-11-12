@@ -56,6 +56,11 @@ const TOKI_LINES = {
   updateDownloading: ["Downloading version {v} of myself. This is a strange feeling."],
   updateInstalling: ["Installing the update. I will be right back, Sensei. Please don't go anywhere."],
   updated: ["Update complete. I am now version {v}. I feel... newer. Pyon."],
+  gameUpdateAvailable: ["Sensei, {t} {v} is out. The gold button is waiting for you. I polished it.",
+                        "{t} has an update: {v}. I recommend it. The button is gold, so it must be good."],
+  gameUpdatesWaiting: ["Sensei, {n} of your games have updates waiting. Look for the gold badges."],
+  gameUpdateStart: ["Updating {t} to {v}. Out with the old, in with the new. Cleaning is part of the job."],
+  gameUpdated: ["{t} is now {v}. I have tidied away {o}. Pyon. ✌"],
 };
 
 const Toki = (() => {

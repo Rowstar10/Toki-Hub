@@ -59,6 +59,7 @@ fn game(world: &World) -> serde_json::Value {
 fn phone_hub(world: &World, phone: &Arc<Phone>) -> Hub {
     let mut options = HubOptions::new(vec![world.catalog()], world.data());
     options.github_api = world.web.base.clone();
+    options.github_web = world.web.base.clone();
     options.platform = "android".into();
     options.device = Some(phone.clone());
     Hub::new(options)
@@ -93,6 +94,28 @@ fn a_phone_installs_launches_and_removes_the_app() {
 
     assert!(hub.install("test-game", "1.0").is_err(), "1.0 has no Android build");
     assert!(hub.launch("test-game", "1.0").is_err());
+}
+
+#[test]
+fn a_phone_updates_without_removing_the_old_app() {
+    let world = World::new();
+    let mut catalog = game(&world);
+    catalog["versions"].as_array_mut().unwrap().insert(0, json!({"version": "3.0", "builds": [
+        {"platform": "android", "source": {"type": "url", "url": format!("{}/game.apk", world.web.base)},
+         "launch": {"type": "android", "package": "com.example.testgame.v3_0"}}]}));
+    write_game(&world.catalog(), "test-game", &catalog);
+    world.web.file("/game.apk", b"PK fake apk".to_vec());
+    let phone = Arc::new(Phone::default());
+    phone.apps.lock().unwrap().push(PACKAGE.to_string()); // 2.0 is installed
+    let hub = phone_hub(&world, &phone);
+    assert_eq!(hub.poll(0)["game_updates"], json!({"test-game": {"from": "2.0", "to": "3.0"}}));
+
+    let started = hub.update_game("test-game").unwrap();
+    assert_eq!((started["version"].as_str(), started["replaces"].as_str()), (Some("3.0"), Some("")));
+    let id = started["id"].as_str().unwrap().to_string();
+    wait_for("the update", || hub.installer.tasks().into_iter().find(|t| t["id"] == id.as_str() && t["status"] == "done"));
+    assert_eq!(phone.handed.lock().unwrap().len(), 1, "the new version went to Android's installer");
+    assert!(phone.removed.lock().unwrap().is_empty(), "each version is its own app, so the old one is left alone");
 }
 
 #[test]

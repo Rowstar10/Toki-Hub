@@ -17,15 +17,20 @@ games install as apps: the hub downloads each one and Android asks you to instal
 
 ## Setup
 
-Open Settings (top right) and paste in a
-[fine-grained GitHub token](https://github.com/settings/personal-access-tokens/new) with read-only
-**Contents** access to this repository and the game repositories. They are private, so the hub needs it
-to download games and its own updates.
+Nothing to set up. This repository and the game repositories are public, so the hub downloads games
+and its own updates without a token (games come from GitHub's ordinary download links).
+
+A [fine-grained GitHub token](https://github.com/settings/personal-access-tokens/new) (Settings, top
+right) is only needed for games in private repositories: give it read-only **Contents** access to them.
 
 ## What it does
 
 - **Installs games with everything they need.** Python games get the Python version and packages their
   catalog entry lists, installed just for that game: nothing system-wide, no admin rights.
+- **Shows game updates.** When a newer version of an installed game is out, its card in the library gets a
+  gold **Update** badge and its page a gold **Update** button. That installs the new version and removes
+  the one it replaces; other versions you kept stay. (On Android each version is its own app, so the old
+  one stays until you uninstall it.)
 - **Updates itself.** When a new version is out, a gold **Update** button appears at the top.
   Settings › Updates has **Check now**.
 - Settings and installed games are in `%LOCALAPPDATA%\Toki Hub`.
