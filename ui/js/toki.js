@@ -29,6 +29,11 @@ const TOKI_LINES = {
   installDone: [
     "{t} {v} is installed and ready. Pyon. ✌",
     "Download complete. {t} {v} is ready whenever you are, Sensei.",
+    "Ready to play! {t} {v} is all set, Sensei. Pyon, pyon. ✌",
+    "{t} {v}: installed. Ready to play! ...I may have done a small hop just now.",
+  ],
+  apkDownloaded: [
+    "{t} {v} is downloaded. Tap Install in Android's prompt and it is ready to play. Pyon. ✌",
   ],
   installError: [
     "The download of {t} {v} did not go to plan. I am... mildly frustrated. The details are in the notice.",
@@ -60,7 +65,8 @@ const TOKI_LINES = {
                         "{t} has an update: {v}. I recommend it. The button is gold, so it must be good."],
   gameUpdatesWaiting: ["Sensei, {n} of your games have updates waiting. Look for the gold badges."],
   gameUpdateStart: ["Updating {t} to {v}. Out with the old, in with the new. Cleaning is part of the job."],
-  gameUpdated: ["{t} is now {v}. I have tidied away {o}. Pyon. ✌"],
+  gameUpdated: ["{t} is now {v}. I have tidied away {o}. Pyon. ✌",
+                "Ready to play! {t} {v} is in, and {o} is tidied away."],
 };
 
 const Toki = (() => {
@@ -88,13 +94,14 @@ const Toki = (() => {
     boxEl.classList.add("done");
   }
 
-  function say(kind, vars) {
+  // cheer: a happy bounce instead of the usual bob, for good news like a finished install.
+  function say(kind, vars, cheer = false) {
     fullText = fill(pick(kind), vars);
     clearInterval(timer);
     boxEl.classList.remove("done");
-    portraitEl.classList.remove("talking");
-    void portraitEl.offsetWidth;          // restart the bob animation
-    portraitEl.classList.add("talking");
+    portraitEl.classList.remove("talking", "cheer");
+    void portraitEl.offsetWidth;          // restart the animation
+    portraitEl.classList.add(cheer ? "cheer" : "talking");
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return finish();
     let shown = 0;
     lineEl.textContent = "";
@@ -121,5 +128,7 @@ const Toki = (() => {
     if (art.complete && art.naturalWidth) { art.hidden = false; emblem.hidden = true; }
   }
 
-  return { init, say };
+  const cheer = (kind, vars) => say(kind, vars, true);
+
+  return { init, say, cheer };
 })();

@@ -573,17 +573,18 @@ function noticeTaskChanges() {
     if (task.status === "done" && onPhone()) {
       // Android's installer is up now; the game shows as installed once the player confirms
       toast({ kind: "success", title: `${task.title} ${vlabel(task.version)} downloaded`, text: "Tap Install in Android's prompt to finish." });
-      Toki.say("installDone", vars);
+      Toki.cheer("apkDownloaded", vars);
     } else if (task.status === "done" && task.replaces) {
       // An update: show the new version, which replaced the old one
       ui.versionFor[task.game_id] = task.version;
       const title = `${task.title} updated to ${vlabel(task.version)}`;
       if (task.warning) toast({ kind: "error", title, text: task.warning, sticky: true });
       else toast({ kind: "success", title, text: `${vlabel(task.replaces)} was removed. Ready to launch.` });
-      Toki.say("gameUpdated", { ...vars, o: vlabel(task.replaces) });
+      if (task.warning) Toki.say("gameUpdated", { ...vars, o: vlabel(task.replaces) });
+      else Toki.cheer("gameUpdated", { ...vars, o: vlabel(task.replaces) });
     } else if (task.status === "done") {
       toast({ kind: "success", title: `${task.title} ${vlabel(task.version)} installed`, text: "Ready to launch." });
-      Toki.say("installDone", vars);
+      Toki.cheer("installDone", vars);
     } else if (task.status === "error") {
       const failed = task.replaces ? `Could not update ${task.title} to` : `Could not install ${task.title}`;
       toast({ kind: "error", title: `${failed} ${vlabel(task.version)}`, text: task.error, sticky: true });

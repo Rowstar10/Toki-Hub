@@ -318,6 +318,16 @@ code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-siz
 .toki-emblem { width: 88%; height: 88%; margin: 6% 6% 0; object-fit: contain; }
 .portrait.talking .toki-emblem, .portrait.talking .toki-art { animation: bob 0.5s ease-in-out 2; }
 @keyframes bob { 50% { transform: translateY(-3px); } }
+/* A happy bounce when an install finishes: two hops with a little squash on landing. */
+.portrait.cheer { animation: cheer 1.1s ease-out; transform-origin: 50% 100%; }
+@keyframes cheer {
+  0%, 100% { transform: none; }
+  12% { transform: translateY(2px) scale(1.06, 0.94); }
+  30% { transform: translateY(-16px) scale(0.96, 1.05) rotate(-4deg); }
+  46% { transform: translateY(1px) scale(1.05, 0.95); }
+  62% { transform: translateY(-9px) scale(0.98, 1.03) rotate(3deg); }
+  78% { transform: translateY(0) scale(1.03, 0.97); }
+}
 .dialogue-box { position: relative; flex: 1; min-height: 88px; padding: 12px 54px 14px 56px; border-radius: 16px;
   background: rgba(255, 255, 255, 0.9); border: 1px solid #fff; box-shadow: var(--shadow); cursor: pointer;
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
