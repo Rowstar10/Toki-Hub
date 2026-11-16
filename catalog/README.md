@@ -38,8 +38,9 @@ Only `title` is required. `accent` is a colour for the stripe beside the game's 
 
 ## Changelog
 
-A game can point to a changelog kept with its code, and each version's page shows that version's
-part of it instead of its `notes`:
+A game can point to a changelog kept with its code. Each version's page shows the version's
+`notes` as a quick summary, and a "Show more" button under it shows that version's full part of
+the changelog:
 
 ```json
 "changelog": { "repo": "Rowstar10/Hu-Taong", "path": "CHANGELOG.md" }
@@ -64,8 +65,9 @@ One line saying what the version is about.
 
 The hub fetches it once per session (again when you press reload) and keeps the last copy, so it
 still shows offline. Editing the file on GitHub is enough: no new hub release is needed. A version
-missing from the changelog, or a changelog that can't be fetched and was never saved, falls back
-to the version's `notes`, so keep a one-line `notes` for each version as well.
+missing from the changelog, or a changelog that can't be fetched and was never saved, shows just
+the `notes`, with no "Show more". Keep `notes` short: a line saying what the version is about,
+then at most four `- ` bullets for the main changes.
 
 ## Versions and builds
 

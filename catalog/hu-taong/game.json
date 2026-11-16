@@ -12,7 +12,7 @@
     {
       "version": "1.6",
       "date": "2026-11-12",
-      "notes": "Power-up fixes and changes, from a review of every power-up.",
+      "notes": "Every power-up reviewed: fixes, fairer balance and clearer effects.\n- Fixes for Snowball, Portal Pair, Sticky Goo, Safety Teleport and the Middle Wall\n- Safety Teleport, Swift Step, Spirit Fire and Frostbite toned down\n- Clearer looks for most power-ups, and a smarter computer player\n- Talismans turn up more often; online needs both players on 1.6",
       "builds": [
         {
           "platform": "any",
@@ -29,7 +29,7 @@
     {
       "version": "1.5",
       "date": "2026-11-11",
-      "notes": "Smoother online play, and hits off the joining player's paddle that look the same on both screens.",
+      "notes": "Smoother online play, and hits that look the same on both screens.\n- The ball no longer freezes, slips back or passes through a paddle online\n- Saves no longer turn into goals when the connection stalls\n- Plays on Android too, with touch controls\n- Online needs both players on 1.5",
       "builds": [
         {
           "platform": "any",
@@ -57,7 +57,7 @@
     {
       "version": "1.4",
       "date": "2026-11-10",
-      "notes": "Fixes for hits off a paddle's ends, and for a friend leaving an online match.",
+      "notes": "Fixes for hits off a paddle's ends, and for a friend leaving an online match.\n- Balls off a paddle's end no longer shoot off far too fast\n- When a friend leaves online, you get the end-of-match screen",
       "builds": [
         {
           "platform": "any",
@@ -74,7 +74,7 @@
     {
       "version": "1.3",
       "date": "2026-11-10",
-      "notes": "Online play, replays, courts and twelve new power-ups, with an overhaul of settings, assets and the AI.",
+      "notes": "Online play, replays, courts and twelve new power-ups.\n- Play a friend online with a code, or in a public room\n- Instant replays, saved matches, clips and highlights\n- Five courts, twelve new power-ups and harder hits\n- Stats you can export, including online wins",
       "builds": [
         {
           "platform": "any",
@@ -91,7 +91,7 @@
     {
       "version": "1.2",
       "date": "2026-11-04",
-      "notes": "Power-ups arrive, with more backgrounds and music and a full jukebox.",
+      "notes": "Power-ups arrive, with more backgrounds and music and a full jukebox.\n- Eleven power-ups: Boons, Curses and Wild\n- Game Pace, ambience and smoother fades between tracks\n- 34 backgrounds and 58 music tracks in all",
       "builds": [
         {
           "platform": "any",
@@ -108,7 +108,7 @@
     {
       "version": "1.1",
       "date": "2026-11-03",
-      "notes": "AI styles, key rebinding, new Chaos modes and an Interface settings page.",
+      "notes": "AI styles, key rebinding, new Chaos modes and an Interface settings page.\n- Four AI styles, and an AI that banters\n- Hand a paddle to the AI mid-match, or take the Middle Wall down\n- Chaos Mode + and Chaos Switch",
       "builds": [
         {
           "platform": "any",
@@ -125,7 +125,7 @@
     {
       "version": "1.0",
       "date": "2026-11-03",
-      "notes": "First release, with a new Wangsheng Funeral Parlor look.",
+      "notes": "First release, with a new Wangsheng Funeral Parlor look.\n- New panels, fonts, effects and score banners\n- 29 backgrounds and 43 music tracks",
       "builds": [
         {
           "platform": "any",
@@ -142,7 +142,7 @@
     {
       "version": "0.9",
       "date": "2026-11-02",
-      "notes": "Match setup, stats, and settings that are remembered.",
+      "notes": "Match setup, stats, and settings that are remembered.\n- Choose your opponent and paddle, against an adaptive AI\n- Chaos Mode, a Stats screen and music that fits the mood",
       "builds": [
         {
           "platform": "any",

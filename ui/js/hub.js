@@ -29,6 +29,7 @@ const ui = {
   connected: true,
   pollTimer: null,
   changelogs: {},           // game id -> "loading", then {versions, from, error} from the hub
+  notesOpen: new Set(),     // "game id/version" whose full notes are shown ("Show more")
 };
 
 /* ---------- Talking to the hub ---------- */
@@ -349,19 +350,32 @@ function actionBar(game, version) {
   return bar;
 }
 
+// The catalog's notes are the quick summary. "Show more" swaps in the version's full section of the
+// game's changelog, when it has one that says more.
 function notesPanel(game, version) {
-  const notes = versionNotes(game, version);
+  const summary = (version.notes || "").trim();
+  const full = changelogSection(game, version);
+  const hasMore = Boolean(summary && full && full !== summary);
+  const key = `${game.id}/${version.version}`;
+  const open = hasMore && ui.notesOpen.has(key);
+  const notes = open ? full : summary || full;
+  const toggle = () => {
+    if (ui.notesOpen.has(key)) ui.notesOpen.delete(key); else ui.notesOpen.add(key);
+    renderDetail();
+  };
   return el("section", { class: "panel notes" },
     el("div", { class: "notes-head" },
       el("h2", { class: "section-title", text: `What's in ${vlabel(version.version)}` }),
       version.date ? el("span", { class: "notes-date", text: formatDate(version.date) }) : null),
-    notes ? formatNotes(notes) : el("p", { class: "muted", text: "No release notes for this version." }));
+    notes ? formatNotes(notes) : el("p", { class: "muted", text: "No release notes for this version." }),
+    hasMore ? el("button", { class: "notes-more", type: "button", "aria-expanded": open ? "true" : "false", onclick: toggle },
+      open ? "Show less" : "Show more") : null);
 }
 
-// The version's section of the game's changelog once it has arrived, otherwise the catalog's notes.
-function versionNotes(game, version) {
+// The version's section of the game's changelog, once it has arrived.
+function changelogSection(game, version) {
   const changelog = ui.changelogs[game.id];
-  return (typeof changelog === "object" && changelog.versions[version.version]) || version.notes;
+  return ((typeof changelog === "object" && changelog.versions[version.version]) || "").trim();
 }
 
 // Fetch a game's changelog once (the hub keeps a copy for offline use), then redraw its page.
