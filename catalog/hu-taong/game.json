@@ -12,14 +12,14 @@
     {
       "version": "1.6",
       "date": "2026-11-12",
-      "notes": "Every power-up reviewed: fixes, fairer balance and clearer effects.\n- Fixes for Snowball, Portal Pair, Sticky Goo, Safety Teleport and the Middle Wall\n- Safety Teleport, Swift Step, Spirit Fire and Frostbite toned down\n- Clearer looks for most power-ups, and a smarter computer player\n- Talismans turn up more often; online needs both players on 1.6",
+      "notes": "Every power-up reviewed, then a round of changes from playtesting.\n- Fixes for Snowball, Portal Pair, Sticky Goo, Safety Teleport and the Middle Wall\n- Gravity and Frostbite removed; the Firecracker bangs on a 5-second fuse\n- A 3-2-1 before play resumes, Mute buttons, a Court Dim slider and Reset Ball & Paddles\n- Far fewer stutters mid-match\n- Online needs both players on 1.6. Reinstall 1.6 to get this update",
       "builds": [
         {
           "platform": "any",
           "source": {
             "type": "github-archive",
             "repo": "Rowstar10/Hu-Taong",
-            "ref": "ca9dbfe0cc35f02f664a2ce0868ee2e49e2c6751"
+            "ref": "46b3e5076e823f4fc03acab79bb0d1c6119b2889"
           },
           "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
           "note": "Runs from source with Python 3.12 and pygame."
