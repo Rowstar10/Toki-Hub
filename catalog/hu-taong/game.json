@@ -12,14 +12,14 @@
     {
       "version": "1.6",
       "date": "2026-11-12",
-      "notes": "Every power-up reviewed, then a round of changes from playtesting.\n- Fixes for Snowball, Portal Pair, Sticky Goo, Safety Teleport and the Middle Wall\n- Gravity and Frostbite removed; the Firecracker bangs on a 5-second fuse\n- A 3-2-1 before play resumes, Mute buttons, a Court Dim slider and Reset Ball & Paddles\n- Far fewer stutters mid-match\n- Online needs both players on 1.6. Reinstall 1.6 to get this update",
+      "notes": "Every power-up reviewed, then two rounds of changes from playtesting.\n- Fixes for Snowball, Portal Pair, Sticky Goo, Safety Teleport and the Middle Wall\n- Gravity and Frostbite removed; Chaos Mode + is now Shape Shift\n- The Firecracker bangs on a 5-second fuse, counted down over the ball\n- A 3-2-1 before play resumes, Mute buttons, a Court Dim slider and Reset Ball & Paddles\n- Far fewer stutters mid-match\n- Online needs both players on 1.6. Reinstall 1.6 to get this update",
       "builds": [
         {
           "platform": "any",
           "source": {
             "type": "github-archive",
             "repo": "Rowstar10/Hu-Taong",
-            "ref": "46b3e5076e823f4fc03acab79bb0d1c6119b2889"
+            "ref": "e9cf3c43f2786a6277a9e7333831668cfffc2b20"
           },
           "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
           "note": "Runs from source with Python 3.12 and pygame."
