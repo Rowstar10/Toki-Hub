@@ -10,6 +10,34 @@
   "changelog": { "repo": "Rowstar10/Hu-Taong", "path": "CHANGELOG.md" },
   "versions": [
     {
+      "version": "1.8",
+      "date": "2026-11-18",
+      "notes": "Three physics to choose from, a Speed Cap so a charge shot can always be reached, the Black Hole talisman and game mode, and a review of the talismans.\n- Physics: Current, Classic or v0.9, and a Speed Cap, under Ball & Paddles\n- Black Hole: pulls the ball in, grows with each ball it swallows, then collapses into Twin Balls and mini black holes; also a game mode, in place of Portal Pair\n- Portal Pair: ovals with a dotted way out, half a second inside\n- Talismans reviewed: Talismans at Once, effects that last through points, Tombstones that wear down, fade-outs\n- A ball squeezed between two paddles rattles between them again\n- Online needs both players on 1.8",
+      "builds": [
+        {
+          "platform": "any",
+          "source": {
+            "type": "github-archive",
+            "repo": "Rowstar10/Hu-Taong",
+            "ref": "a14ae7ddf69c029119346fba55f5e93b74b7ca54"
+          },
+          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
+          "note": "Runs from source with Python 3.12 and pygame."
+        },
+        {
+          "platform": "android",
+          "source": {
+            "type": "github-release",
+            "repo": "Rowstar10/Hu-Taong",
+            "tag": "v1.8",
+            "asset": "Hu-Taong-1.8-android.apk"
+          },
+          "launch": { "type": "android", "package": "com.rowstar10.hutaong.v1_8" },
+          "note": "Touch controls. Plays online with Hu Taong 1.8 on a PC."
+        }
+      ]
+    },
+    {
       "version": "1.7",
       "date": "2026-11-17",
       "notes": "Game modes you can mix on Match Setup, a reworked Switch, match settings from the pause menu, tidier settings menus, and drifting portals.\n- Seven game modes, any of them together: Chaos, Switch, Curveball, Lantern Night, Twin Ball, Talisman Rush and Portal Pair\n- Switch: you take over the other paddle and keep your keys and your score; mid-rally switches go off at a hit\n- Change the rules mid-match from Pause > Settings > Match, from the next serve\n- Settings regrouped into Match, Gameplay, Display, Audio and UI\n- Portal Pair's portals drift, turn and grow\n- Online needs both players on 1.7",
