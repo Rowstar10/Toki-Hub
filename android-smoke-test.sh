@@ -55,11 +55,17 @@ waitfor() {   # waitfor <seconds> <command...>: until the command succeeds
 
 shows() { screen | grep -qi "$1"; }
 
+# Android's own dialogs (on a slow emulator, "Pixel Launcher isn't responding") would catch taps
+calm() { adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS > /dev/null 2>&1 || true; }
+
 echo "Installing $APK"
 adb install -r "$APK"
-# What a player allows the first time Toki Hub installs a game
+# What a player allows the first time Toki Hub installs a game, and an emulator's "isn't
+# responding" dialogs (for its own apps) kept out of the way
 adb shell appops set "$HUB" REQUEST_INSTALL_PACKAGES allow || true
+adb shell settings put global hide_error_dialogs 1 || true
 adb logcat -c
+calm
 adb shell am start -n "$HUB/.MainActivity"
 waitfor 60 adb shell pidof "$HUB" || fail "Toki Hub didn't start"
 waitfor 90 shows "Library\|Hu Taong\|No games yet" || fail "Toki Hub's library never showed"
@@ -70,14 +76,17 @@ screen > "$OUT/hub-screen.xml"
 if [[ -n "${INSTALL_GAME:-}" ]]; then
   package="${GAME_PACKAGE:?set GAME_PACKAGE to the Android package of the game}"
   adb shell pm uninstall "$package" > /dev/null 2>&1 || true
+  calm
   tap 20 "$HUB" "$INSTALL_GAME" || true               # its card in the library
   sleep 2
+  calm
   tap 30 "$HUB" "Install" || fail "no Install button for $INSTALL_GAME"
   shot downloading
   # Android's installer asks once the download is done (it can take a few minutes)
   tap 600 "packageinstaller" "Install" "Update" || fail "Android's installer never asked"
   waitfor 180 sh -c "adb shell pm list packages $package | grep -q $package" || fail "$INSTALL_GAME didn't install"
   shot installed
+  calm
   adb shell am start -n "$HUB/.MainActivity" > /dev/null
   tap 60 "$HUB" "Play" || fail "no Play button once $INSTALL_GAME was installed"
   waitfor 60 adb shell pidof "$package" || fail "$INSTALL_GAME didn't start"

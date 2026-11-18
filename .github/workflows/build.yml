@@ -220,6 +220,39 @@ jobs:
           name: Android screenshots
           path: target/android-test
 
+  # Every Android build in the catalog must point at an APK that's really published, or phones
+  # are offered an Install that can't work. (It doesn't hold up the releases: it says what's
+  # missing, and the run shows it failed.)
+  catalog-apks:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Every Android build's APK is published
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          missing=0
+          while read -r game version repo tag asset; do
+            if gh release view "$tag" --repo "$repo" --json assets --jq '.assets[].name' 2>/dev/null | grep -qx "$asset"; then
+              echo "ok: $game $version for Android ($asset on $repo $tag)"
+            else
+              echo "::error file=catalog/$game/game.json::$game $version for Android: $repo has no $asset on $tag"
+              missing=1
+            fi
+          done < <(python3 - <<'PY'
+          import json, pathlib
+          for path in sorted(pathlib.Path("catalog").glob("*/game.json")):
+              game = json.loads(path.read_text())
+              for version in game.get("versions", []):
+                  for build in version.get("builds", []):
+                      source = build.get("source", {})
+                      if build.get("platform") == "android" and source.get("type") == "github-release":
+                          print(path.parent.name, version["version"], source["repo"], source["tag"], source["asset"])
+          PY
+          )
+          exit $missing
+
   android-release:
     needs: [windows, android, android-test]
     if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
