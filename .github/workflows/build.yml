@@ -153,6 +153,8 @@ jobs:
       - name: Build the APK
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          # Maven Central sometimes answers "too many requests": Gradle tries again, waiting longer each time
+          GRADLE_OPTS: -Dorg.gradle.internal.repository.max.retries=8 -Dorg.gradle.internal.repository.initial.backoff=2000
         run: |
           npx tauri android build --apk --ci --target aarch64 x86_64
           mkdir -p dist
