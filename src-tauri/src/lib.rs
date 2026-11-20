@@ -275,7 +275,9 @@ async fn uninstall_hub(app: AppHandle, hub: HubState<'_>, wipe: bool) -> Answer<
 
 /// Start a hidden command that waits for Toki Hub to close, then deletes its exe (and the one an
 /// update left behind) and `folders`. Windows won't delete a running exe, so this can't be done
-/// from inside. Paths cmd could misread (with % or ") are left alone.
+/// from inside. Each step is in brackets: cmd would otherwise run every `&` after a `for` as part
+/// of its loop. The exe goes first: once it can be deleted, Toki Hub has closed and let go of its
+/// files. Paths cmd could misread (with % or ") are left alone.
 #[cfg(windows)]
 fn remove_after_exit(exe: &Path, folders: &[PathBuf]) -> std::io::Result<()> {
     use std::os::windows::process::CommandExt;
@@ -287,10 +289,10 @@ fn remove_after_exit(exe: &Path, folders: &[PathBuf]) -> std::io::Result<()> {
     let pause = "ping -n 2 127.0.0.1 >nul";
     let mut steps = vec!["ping -n 3 127.0.0.1 >nul".to_string()];
     for file in [exe.to_path_buf(), old_exe(exe)].iter().filter_map(|file| quoted(file)) {
-        steps.push(format!("for /l %i in (1,1,15) do @if exist {file} (del /f /q {file} >nul 2>&1 & if exist {file} {pause})"));
+        steps.push(format!("(for /l %i in (1,1,30) do @if exist {file} (del /f /q {file} >nul 2>&1 & if exist {file} {pause}))"));
     }
     for folder in folders.iter().filter_map(|folder| quoted(folder)) {
-        steps.push(format!("for /l %i in (1,1,15) do @if exist {folder} (rmdir /s /q {folder} >nul 2>&1 & if exist {folder} {pause})"));
+        steps.push(format!("(for /l %i in (1,1,15) do @if exist {folder} (rmdir /s /q {folder} >nul 2>&1 & if exist {folder} {pause}))"));
     }
     std::process::Command::new("cmd.exe")
         .raw_arg(format!("/d /s /c \"{}\"", steps.join(" & ")))

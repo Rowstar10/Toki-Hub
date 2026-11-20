@@ -119,7 +119,14 @@ jobs:
         run: |
           rustup target add aarch64-linux-android x86_64-linux-android
           (yes || true) | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
-          (yes || true) | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$NDK_VERSION" | grep -v "^\[" | tail -3
+          # The download sometimes fails without saying so, leaving a half-made NDK folder: try again
+          ndk="$ANDROID_SDK_ROOT/ndk/$NDK_VERSION"
+          for attempt in 1 2 3; do
+            [[ -f "$ndk/source.properties" ]] && break
+            rm -rf "$ndk"
+            (yes || true) | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$NDK_VERSION" | grep -v "^\[" | tail -3
+          done
+          [[ -f "$ndk/source.properties" ]] || { echo "::error::Could not install the Android NDK $NDK_VERSION"; exit 1; }
           echo "NDK_HOME=$ANDROID_SDK_ROOT/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
           echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
           npm ci
