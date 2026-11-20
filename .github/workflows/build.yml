@@ -153,10 +153,16 @@ jobs:
       - name: Build the APK
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          # Maven Central sometimes answers "too many requests": Gradle tries again, waiting longer each time
-          GRADLE_OPTS: -Dorg.gradle.internal.repository.max.retries=8 -Dorg.gradle.internal.repository.initial.backoff=2000
         run: |
-          npx tauri android build --apk --ci --target aarch64 x86_64
+          # Gradle retries each download (see gen/android/gradle.properties); if Maven Central still
+          # says "too many requests", the whole build goes again after a pause (Rust is built by then)
+          set -o pipefail
+          for attempt in 1 2 3; do
+            if npx tauri android build --apk --ci --target aarch64 x86_64 2>&1 | tee "$RUNNER_TEMP/apk.log"; then break; fi
+            if [[ $attempt == 3 ]] || ! grep -q "429\|Too Many Requests" "$RUNNER_TEMP/apk.log"; then exit 1; fi
+            echo "::warning::Maven Central was busy (429); building again in $((attempt * 90)) s"
+            sleep $((attempt * 90))
+          done
           mkdir -p dist
           cp src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk dist/Toki-Hub-android.apk
           rm -f "$RUNNER_TEMP/toki.p12"
