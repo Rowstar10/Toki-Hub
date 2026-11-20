@@ -223,7 +223,25 @@ function gameIcon(game) {
   return el("span", { class: "game-icon placeholder", text: game.title.slice(0, 1).toUpperCase() });
 }
 
-const WIDE_HEADER = window.matchMedia("(min-width: 1101px)");
+// The tags, on one row. When they don't all fit it scrolls sideways (a mouse wheel scrolls it too),
+// and the edge with more tags past it fades out.
+function tagRow(tags) {
+  const row = el("div", { class: "tags" }, tags.map((t) => el("span", { class: "tag" }, el("span", { text: t }))));
+  row.addEventListener("scroll", () => fadeTagEdges(row));
+  row.addEventListener("wheel", (event) => {
+    if (row.scrollWidth <= row.clientWidth || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+    row.scrollLeft += event.deltaY;
+    event.preventDefault();
+  }, { passive: false });
+  requestAnimationFrame(() => fadeTagEdges(row));
+  return row;
+}
+
+function fadeTagEdges(row) {
+  const more = row.scrollWidth - row.clientWidth;
+  row.classList.toggle("more-left", more > 1 && row.scrollLeft > 1);
+  row.classList.toggle("more-right", more > 1 && row.scrollLeft < more - 1);
+}
 
 function renderDetail() {
   const detail = document.getElementById("detail");
@@ -239,14 +257,6 @@ function renderDetail() {
   }
   const version = selectedVersion(game);
   if (game.changelog) loadChangelog(game.id);
-  // About sits beside the title in a wide window; in a narrower one (or on a phone) it goes under
-  // the Download/Install bar instead, so that button stays on the first screen
-  const wide = WIDE_HEADER.matches;
-  const about = [
-    el("h2", { class: "section-title", text: "About" }),
-    el("p", { class: "about-text", text: game.description || "No description yet." }),
-    game.developer ? el("div", { class: "developer", text: `By ${game.developer}` }) : null,
-  ];
   const scroll = detail.scrollTop;
   detail.replaceChildren(
     el("section", { class: "hero" },
@@ -257,13 +267,16 @@ function renderDetail() {
       el("div", { class: "headline-text" },
         el("h1", { class: "game-title", text: game.title }),
         game.tagline ? el("p", { class: "tagline", text: game.tagline }) : null,
-        game.tags.length ? el("div", { class: "tags" }, game.tags.map((t) => el("span", { class: "tag" }, el("span", { text: t })))) : null),
-      wide ? el("div", { class: "headline-about" }, about) : null),
+        game.tags.length ? tagRow(game.tags) : null)),
     ...[updateBanner(game)].filter(Boolean),   // (replaceChildren would show a null as the text "null")
     el("section", { class: "panel action-bar" }, actionBar(game, version)),
-    ...(wide ? [] : [el("section", { class: "panel about" }, about)]),
     el("div", { class: "columns" },
-      el("div", { class: "stack" }, version ? notesPanel(game, version) : null),
+      el("div", { class: "stack" },
+        version ? notesPanel(game, version) : null,
+        el("section", { class: "panel" },
+          el("h2", { class: "section-title", text: "About" }),
+          el("p", { class: "about-text", text: game.description || "No description yet." }),
+          game.developer ? el("div", { class: "developer", text: `By ${game.developer}` }) : null)),
       versionsPanel(game, version)));
   detail.scrollTop = scroll;
 }
@@ -909,7 +922,7 @@ function wireUp() {
   document.getElementById("update-now").addEventListener("click", startUpdate);
   document.getElementById("btn-check-updates").addEventListener("click", () => checkForUpdates(true));
   document.getElementById("btn-uninstall-hub").addEventListener("click", openUninstallHub);
-  WIDE_HEADER.addEventListener("change", () => { if (ui.data) renderDetail(); });
+  window.addEventListener("resize", () => document.querySelectorAll(".tags").forEach(fadeTagEdges));
   document.getElementById("uninstall-wipe").addEventListener("change", renderUninstallButton);
   document.getElementById("uninstall-hub-ok").addEventListener("click", uninstallHub);
 }

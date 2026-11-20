@@ -170,9 +170,9 @@ code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-siz
 .hero-fallback { position: absolute; inset: 0; display: grid; place-items: center; }
 .hero-fallback img { width: 220px; opacity: 0.4; }
 
-.headline { position: relative; z-index: 1; display: flex; align-items: center; gap: 18px; margin: -64px 22px 0;
+.headline { position: relative; z-index: 1; display: flex; align-items: flex-end; gap: 18px; margin: -64px 22px 0;
   padding: 16px 20px 16px 30px; background: rgba(255, 255, 255, 0.95); }
-.headline::before { content: ""; position: absolute; left: 11px; top: 20px; height: min(72px, calc(100% - 40px)); width: 5px; border-radius: 3px;
+.headline::before { content: ""; position: absolute; left: 11px; top: 20px; bottom: 20px; width: 5px; border-radius: 3px;
   background: var(--accent, var(--sky-500)); transform: skewX(var(--skew)); }
 .headline .game-icon { width: 88px; height: 88px; border-radius: 20px; box-shadow: 0 0 0 4px #fff, var(--shadow); }
 .headline .game-icon.placeholder { font-size: 36px; }
@@ -180,17 +180,19 @@ code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-siz
 .game-title { margin: 0; font-family: var(--display); font-style: italic; font-weight: 800; font-size: 38px; line-height: 1.05;
   color: var(--navy); }
 .tagline { margin: 4px 0 0; color: var(--ink-soft); font-weight: 700; }
-.tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.tags { display: flex; flex-wrap: nowrap; gap: 6px; margin-top: 10px; padding: 1px 4px 2px 2px; overflow-x: auto;
+  scrollbar-width: none; }
+.tags::-webkit-scrollbar { display: none; }
+.tags.more-right { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent); }
+.tags.more-left { -webkit-mask-image: linear-gradient(90deg, transparent, #000 40px);
+  mask-image: linear-gradient(90deg, transparent, #000 40px); }
+.tags.more-left.more-right { -webkit-mask-image: linear-gradient(90deg, transparent, #000 40px, #000 calc(100% - 40px), transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 40px, #000 calc(100% - 40px), transparent); }
+.tag { flex: none; white-space: nowrap; }
 .tag { display: inline-block; padding: 2px 12px; border-radius: 6px; transform: skewX(var(--skew)); background: var(--sky-100);
   color: var(--sky-700); font-size: 12px; font-weight: 800; letter-spacing: 0.02em; }
 .tag > span { display: inline-block; transform: skewX(calc(var(--skew) * -1)); }
-.headline-about { flex: 1.3; min-width: 0; align-self: stretch; display: flex; flex-direction: column; justify-content: center;
-  padding-left: 20px; border-left: 1px solid var(--line); }
-.headline-about .section-title { font-size: 13px; margin-bottom: 4px; }
-.headline-about .section-title::before { width: 4px; height: 13px; }
-.headline-about .about-text { font-size: 14px; color: var(--ink-soft); }
-.headline-about .developer { margin-top: 6px; }
-.about { margin-top: 18px; }
 
 .action-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 18px; margin-top: 16px; }
 .action-version { display: flex; flex-direction: column; min-width: 130px; }
@@ -464,7 +466,6 @@ code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-siz
   .game-card .game-icon { width: 40px; height: 40px; border-radius: 10px; }
   .hero { height: 170px; border-radius: 16px; }
   .headline { margin: -44px 8px 0; padding: 14px 14px 14px 22px; gap: 12px; flex-wrap: nowrap; align-items: center; }
-  .about { margin-top: 12px; }
   .headline .game-icon { width: 64px; height: 64px; border-radius: 16px; }
   .game-title { font-size: 26px; }
   .tagline { font-size: 14px; }
