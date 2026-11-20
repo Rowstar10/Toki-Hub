@@ -100,15 +100,27 @@ pub struct Build {
 }
 
 impl Build {
-    pub fn source_label(&self) -> String {
-        match &self.source {
-            Source::GithubRelease { repo, tag, .. } => format!("GitHub release {repo} @ {tag}"),
-            Source::GithubArchive { repo, reference } => {
-                let short = if reference.len() == 40 { &reference[..10] } else { reference };
-                format!("GitHub source {repo} @ {short}")
+    /// What a game that runs from source needs, which Toki Hub installs for it: "Python 3.12 and
+    /// pygame 2.6.1". Empty for other builds.
+    pub fn runs_on(&self) -> String {
+        if self.launch.kind != LaunchKind::Python {
+            return String::new();
+        }
+        let python = if self.launch.python.is_empty() { crate::runtime::DEFAULT_PYTHON } else { &self.launch.python };
+        let mut parts = vec![format!("Python {python}")];
+        for package in &self.launch.packages {
+            // "pygame==2.6.1" reads as "pygame 2.6.1"; other requirements as written
+            parts.push(match package.split_once("==") {
+                Some((name, version)) => format!("{} {}", name.trim(), version.trim()),
+                None => package.trim().to_string(),
+            });
+        }
+        match parts.len() {
+            1 => parts.remove(0),
+            _ => {
+                let last = parts.pop().unwrap_or_default();
+                format!("{} and {last}", parts.join(", "))
             }
-            Source::Local { path, .. } => format!("Local files: {path}"),
-            Source::Url { url, .. } => url.clone(),
         }
     }
 }

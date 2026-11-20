@@ -565,7 +565,7 @@ fn write_marker(folder: &Path, game: &Game, version: &Version, build: &Build) ->
     Ok(())
 }
 
-fn folder_size(folder: &Path) -> u64 {
+pub fn folder_size(folder: &Path) -> u64 {
     std::fs::read_dir(folder)
         .into_iter()
         .flatten()

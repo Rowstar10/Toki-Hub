@@ -51,6 +51,7 @@ const TOKI_LINES = {
   stopped: ["{t} has been stopped, as you asked. Mission aborted. Cleanly."],
   uninstall: ["{t} {v} has been tidied away. Cleaning is part of the job, after all."],
   settingsSaved: ["Settings saved. I have memorised them perfectly."],
+  goodbye: ["Understood, Sensei. I will tidy up after myself. ...It was an honour. ✌"],
   reload: ["Catalog reloaded. {n} game(s) on file."],
   problems: ["Sensei, the catalog has {n} problem(s). I have marked them for you."],
   empty: ["The library is empty. Add a game to the catalog and I will take care of the rest."],
@@ -70,7 +71,7 @@ const TOKI_LINES = {
 };
 
 const Toki = (() => {
-  let lineEl, boxEl, portraitEl;
+  let lineEl, boxEl, portraitEl, barEl, toggleEl;
   let timer = null;
   let fullText = "";
   let lastPick = {};
@@ -112,13 +113,39 @@ const Toki = (() => {
     }, 22);
   }
 
+  // Collapsed, the bar is one slim line (Toki keeps talking in it), leaving more room for the games.
+  // Remembered between runs.
+  const collapsed = () => barEl.classList.contains("collapsed");
+  function setCollapsed(on, remember = true) {
+    barEl.classList.toggle("collapsed", on);
+    const label = on ? "Expand Toki's text box" : "Collapse Toki's text box";
+    toggleEl.setAttribute("aria-expanded", on ? "false" : "true");
+    toggleEl.setAttribute("aria-label", label);
+    toggleEl.title = label;
+    portraitEl.title = on ? "Expand Toki's text box" : "Talk to Toki";
+    portraitEl.setAttribute("aria-label", portraitEl.title);
+    if (remember) {
+      try { localStorage.setItem("tokihub.tokiCollapsed", on ? "1" : ""); } catch { /* storage unavailable: fine */ }
+    }
+  }
+
   function init() {
     lineEl = document.getElementById("toki-line");
     boxEl = document.getElementById("dialogue-box");
     portraitEl = document.getElementById("toki-portrait");
-    const talk = () => (timer ? finish() : say("idle"));
+    barEl = document.getElementById("dialogue");
+    toggleEl = document.getElementById("toki-toggle");
+    // A tap on the slim bar opens it again; on the full one, it finishes Toki's line or gets a new one
+    const talk = () => (collapsed() ? setCollapsed(false) : timer ? finish() : say("idle"));
     boxEl.addEventListener("click", talk);
     portraitEl.addEventListener("click", talk);
+    toggleEl.addEventListener("click", (event) => {
+      event.stopPropagation();
+      setCollapsed(!collapsed());
+    });
+    let saved = null;
+    try { saved = localStorage.getItem("tokihub.tokiCollapsed"); } catch { /* storage unavailable: fine */ }
+    setCollapsed(saved === "1", false);
 
     // Use ui/img/toki.png if it exists, otherwise keep the emblem.
     const art = document.getElementById("toki-art");

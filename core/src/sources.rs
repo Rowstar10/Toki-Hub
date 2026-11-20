@@ -118,7 +118,7 @@ impl SourceResolver {
                     url,
                     filename: format!("{name}-{}.zip", short_ref(reference)),
                     headers,
-                    github_what: format!("source code of {repo} at '{reference}'"),
+                    github_what: "files for this version".to_string(),
                     sha256: String::new(),
                 }))
             }
@@ -128,7 +128,7 @@ impl SourceResolver {
                         url: format!("{}/{repo}/releases/download/{}/{}", self.github_web, quote(tag), quote(asset)),
                         filename: asset.clone(),
                         headers: Vec::new(),
-                        github_what: format!("file '{asset}' in release '{tag}' of {repo}"),
+                        github_what: format!("file '{asset}' in release '{tag}'"),
                         sha256: sha256.clone(),
                     }))
                 } else {
@@ -148,7 +148,7 @@ impl SourceResolver {
             .call()
             .map_err(|e| HubError(format!("Could not reach GitHub: {e}")))?;
         if !response.status().is_success() {
-            return Err(github_error(&response, &format!("release '{tag}' of {repo}")));
+            return Err(github_error(&response, &format!("release '{tag}'")));
         }
         let release: Value = response
             .body_mut()
@@ -165,14 +165,14 @@ impl SourceResolver {
                     url: asset.get("url").and_then(Value::as_str).unwrap_or_default().to_string(),
                     filename: asset_name.to_string(),
                     headers,
-                    github_what: format!("file '{asset_name}' in release '{tag}' of {repo}"),
+                    github_what: format!("file '{asset_name}' in release '{tag}'"),
                     sha256: sha256.to_string(),
                 }));
             }
         }
         let names: Vec<&str> = assets.iter().filter_map(|a| a.get("name").and_then(Value::as_str)).collect();
         let names = if names.is_empty() { "none".to_string() } else { names.join(", ") };
-        fail(format!("Release '{tag}' of {repo} has no file named '{asset_name}' (it has: {names})."))
+        fail(format!("Release '{tag}' has no file named '{asset_name}' (it has: {names})."))
     }
 
     /// A small text file, such as a game's changelog.
@@ -184,7 +184,7 @@ impl SourceResolver {
                 if !reference.is_empty() {
                     url.push_str(&format!("?ref={}", quote(reference)));
                 }
-                (url, format!("file '{path}' in {repo}"), true)
+                (url, format!("file '{path}'"), true)
             }
             Changelog::Url { url } => (url.clone(), format!("changelog at {url}"), false),
         };

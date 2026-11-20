@@ -1,9 +1,8 @@
 {
   "title": "Hu Taong",
   "tagline": "Pong, the Wangsheng Funeral Parlor way.",
-  "description": "A Hu Tao themed take on Pong. Play a friend on one keyboard (Red: W A S D, Blue: arrow keys) or face the AI on five difficulties from Baby to Insane, with adaptive AI, chaos mode, endless mode and win-by-two rules. Over thirty backgrounds, mood-matched music and match stats.",
-  "developer": "Rowstar10",
-  "tags": ["Arcade", "Pong", "1-2 players", "vs AI"],
+  "description": "A Hu Tao themed take on Pong. Play a friend on one keyboard or online, or take on the AI at five difficulties from Baby to Insane in four styles. Mix seven game modes, from Chaos and Switch to Black Hole, grab talismans that change the court, and pick from three physics. Replays and highlights, over thirty backgrounds, mood-matched music, match stats, and touch controls on Android.",
+  "tags": ["Arcade", "Pong", "1-2 players", "Online", "vs AI", "Power-ups", "Game modes"],
   "accent": "#d94a3a",
   "icon": "icon.png",
   "cover": "cover.jpg",
@@ -21,8 +20,7 @@
             "repo": "Rowstar10/Hu-Taong",
             "ref": "a14ae7ddf69c029119346fba55f5e93b74b7ca54"
           },
-          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
-          "note": "Runs from source with Python 3.12 and pygame."
+          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] }
         },
         {
           "platform": "android",
@@ -49,8 +47,7 @@
             "repo": "Rowstar10/Hu-Taong",
             "ref": "eba8d25e3b35f257a97a8668d900c8578f9f7926"
           },
-          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
-          "note": "Runs from source with Python 3.12 and pygame."
+          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] }
         },
         {
           "platform": "android",
@@ -77,8 +74,7 @@
             "repo": "Rowstar10/Hu-Taong",
             "ref": "e9cf3c43f2786a6277a9e7333831668cfffc2b20"
           },
-          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
-          "note": "Runs from source with Python 3.12 and pygame."
+          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] }
         },
         {
           "platform": "android",
@@ -105,8 +101,7 @@
             "repo": "Rowstar10/Hu-Taong",
             "ref": "0e742ec56ab62386e8decbd49077370870d134f5"
           },
-          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
-          "note": "Runs from source with Python 3.12 and pygame."
+          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] }
         },
         {
           "platform": "android",
@@ -133,8 +128,7 @@
             "repo": "Rowstar10/Hu-Taong",
             "ref": "aa7440228478d6f7d0b19e3dfcc9797c5f160b1a"
           },
-          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
-          "note": "Runs from source with Python 3.12 and pygame."
+          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] }
         }
       ]
     },
@@ -150,8 +144,7 @@
             "repo": "Rowstar10/Hu-Taong",
             "ref": "ed2e152d38bcd8f3a5cee8a88697088e0061628e"
           },
-          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
-          "note": "Runs from source with Python 3.12 and pygame."
+          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] }
         }
       ]
     },
@@ -167,8 +160,7 @@
             "repo": "Rowstar10/Hu-Taong",
             "ref": "b7af4db19c194d047eb7a1e2c1ad5f9795aa5696"
           },
-          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
-          "note": "Runs from source with Python 3.12 and pygame."
+          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] }
         }
       ]
     },
@@ -184,8 +176,7 @@
             "repo": "Rowstar10/Hu-Taong",
             "ref": "9739a9969704254866890a1295a15ccaede94ce9"
           },
-          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
-          "note": "Runs from source with Python 3.12 and pygame."
+          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] }
         }
       ]
     },
@@ -201,8 +192,7 @@
             "repo": "Rowstar10/Hu-Taong",
             "ref": "213156a404ae47a35c1d38f9454aade49ed04cff"
           },
-          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
-          "note": "Runs from source with Python 3.12 and pygame."
+          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] }
         }
       ]
     },
@@ -218,8 +208,7 @@
             "repo": "Rowstar10/Hu-Taong",
             "ref": "29be85ee67b093a4bf588262e6f6512793be945f"
           },
-          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
-          "note": "Runs from source with Python 3.12 and pygame."
+          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] }
         }
       ]
     },
@@ -235,8 +224,7 @@
             "repo": "Rowstar10/Hu-Taong",
             "ref": "43304a9be2aa7de1b8393796a9c5578064bde850"
           },
-          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
-          "note": "Runs from source with Python 3.12 and pygame."
+          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] }
         }
       ]
     },
@@ -252,8 +240,7 @@
             "repo": "Rowstar10/Hu-Taong",
             "ref": "9e83747b35c3865bdc503645a77c35f3d69278a4"
           },
-          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
-          "note": "Runs from source with Python 3.12 and pygame."
+          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] }
         }
       ]
     },
@@ -269,8 +256,7 @@
             "repo": "Rowstar10/Hu-Taong",
             "ref": "c4592ccc05580a9192baaf94b53a167baae718b3"
           },
-          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
-          "note": "Runs from source with Python 3.12 and pygame."
+          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] }
         }
       ]
     },
@@ -286,8 +272,7 @@
             "repo": "Rowstar10/Hu-Taong",
             "ref": "a4373346053c9880bbfc95a68dcfd5afc4703772"
           },
-          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] },
-          "note": "Runs from source with Python 3.12 and pygame."
+          "launch": { "type": "python", "path": "main.py", "python": "3.12", "packages": ["pygame==2.6.1"] }
         }
       ]
     },
@@ -303,8 +288,7 @@
             "repo": "Rowstar10/Hu-Taong",
             "ref": "63e5fd462e88d724eb903491403f30e44a7165dc"
           },
-          "launch": { "type": "python", "path": "main.py", "python": "3.12" },
-          "note": "Runs from source with Python 3.12 (Tkinter)."
+          "launch": { "type": "python", "path": "main.py", "python": "3.12" }
         }
       ]
     },
@@ -320,8 +304,7 @@
             "repo": "Rowstar10/Hu-Taong",
             "ref": "f08dc4714807b28cab78b227983e96a5b5ebf703"
           },
-          "launch": { "type": "python", "path": "main.py", "python": "3.12" },
-          "note": "Runs from source with Python 3.12 (Tkinter)."
+          "launch": { "type": "python", "path": "main.py", "python": "3.12" }
         }
       ]
     },
@@ -337,8 +320,7 @@
             "repo": "Rowstar10/Hu-Taong",
             "ref": "d57b6808c37a2d884f60ab00f9cc4990adce96fe"
           },
-          "launch": { "type": "python", "path": "HuTaong_Tkinter_v0.2.py", "python": "3.12" },
-          "note": "Runs from source with Python 3.12 (Tkinter)."
+          "launch": { "type": "python", "path": "HuTaong_Tkinter_v0.2.py", "python": "3.12" }
         }
       ]
     },
@@ -354,8 +336,7 @@
             "repo": "Rowstar10/Hu-Taong",
             "ref": "aa73176d7d62905b160fb3673b4f69353f71b59e"
           },
-          "launch": { "type": "python", "path": "HuTaong_Tkinter_v0.1.py", "python": "3.12" },
-          "note": "Runs from source with Python 3.12 (Tkinter)."
+          "launch": { "type": "python", "path": "HuTaong_Tkinter_v0.1.py", "python": "3.12" }
         }
       ]
     }

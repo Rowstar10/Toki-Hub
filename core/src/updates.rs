@@ -121,7 +121,7 @@ impl Updater {
         }
         let mut response = request.call().map_err(|e| HubError(format!("Could not reach GitHub: {e}")))?;
         if !response.status().is_success() {
-            return Err(github_error(&response, &format!("releases of {}", source.repo)));
+            return Err(github_error(&response, "releases of Toki Hub"));
         }
         let releases: Value = response
             .body_mut()

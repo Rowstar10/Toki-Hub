@@ -94,6 +94,9 @@ with no matching build is still listed, marked "No Windows build". Toki Hub on a
 
 Each version installs into its own folder, so any number of versions can be installed side by side.
 
+What a Python build needs to run (its Python version and `packages`) is listed in Settings › About,
+worked out from `launch`, so its `note` needn't say it. Where a build downloads from is never shown.
+
 ### Where to download from: `source`
 
 | `type` | Fields | Use it for |

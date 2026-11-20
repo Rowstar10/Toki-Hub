@@ -34,6 +34,9 @@ right) is only needed for games in private repositories: give it read-only **Con
 - **Updates itself.** When a new version is out, a gold **Update** button appears at the top.
   Settings › Updates has **Check now**.
 - Settings and installed games are in `%LOCALAPPDATA%\Toki Hub`.
+- **Uninstalls from Settings.** Settings › Uninstall removes Toki Hub. Tick **Also delete all cache and
+  saved data** to remove its settings, downloads, the Python it set up and the games it installed too.
+  (On Android, its data always goes with it, and the games stay as their own apps.)
 
 ## Adding games and versions
 

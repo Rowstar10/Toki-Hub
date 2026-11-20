@@ -41,18 +41,22 @@
     <main id="detail" class="detail" aria-live="polite"></main>
   </div>
 
-  <footer class="dialogue">
+  <footer class="dialogue" id="dialogue">
     <button class="portrait" id="toki-portrait" type="button" title="Talk to Toki" aria-label="Talk to Toki">
       <img id="toki-art" class="toki-art" src="img/toki.png" alt="" hidden>
       <img id="toki-emblem" class="toki-emblem" src="img/toki-emblem.svg" alt="">
     </button>
-    <div class="dialogue-box" id="dialogue-box" role="status">
+    <div class="dialogue-box" id="dialogue-box">
       <div class="speaker">
         <span class="speaker-name">Asuma Toki</span>
         <span class="speaker-club">C&amp;C</span>
       </div>
-      <p id="toki-line" class="line"></p>
+      <p id="toki-line" class="line" role="status"></p>
       <span class="next-mark" aria-hidden="true"></span>
+      <button id="toki-toggle" class="dialogue-toggle" type="button" aria-expanded="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+          stroke-linejoin="round" aria-hidden="true"><path d="M6.5 9.5 12 15l5.5-5.5"/></svg>
+      </button>
     </div>
   </footer>
 
@@ -107,8 +111,25 @@
           <button type="button" class="btn btn-ghost btn-small" data-open-place="data"><span>Open</span></button></div>
       </div>
 
+      <div class="field about">
+        <span class="field-label">About</span>
+        <span class="about-version" id="hub-version"></span>
+        <div id="about-runs-on-block">
+          <span class="field-help">What each game needs to run. Toki Hub installs it for every game by itself, so
+            there's nothing to set up.</span>
+          <ul class="runs-on" id="about-runs-on"></ul>
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="field-label">Uninstall</span>
+        <div class="update-row">
+          <span class="field-help" id="uninstall-hub-help">Remove Toki Hub from this computer.</span>
+          <button type="button" class="btn btn-danger-ghost btn-small" id="btn-uninstall-hub"><span>Uninstall Toki Hub</span></button>
+        </div>
+      </div>
+
       <div class="modal-actions">
-        <span class="modal-foot" id="hub-version"></span>
         <button type="button" class="btn btn-ghost" id="set-cancel"><span>Cancel</span></button>
         <button type="submit" class="btn btn-primary" id="set-save"><span>Save</span></button>
       </div>
@@ -164,6 +185,24 @@
     <div class="modal-actions">
       <button type="button" class="btn btn-ghost" data-close><span>Cancel</span></button>
       <button type="button" class="btn btn-danger" id="confirm-ok"><span>Uninstall</span></button>
+    </div>
+  </dialog>
+
+  <dialog id="uninstall-hub-dialog" class="modal modal-small">
+    <h2 class="modal-title">Uninstall Toki Hub?</h2>
+    <p id="uninstall-hub-text"></p>
+    <label class="check" id="uninstall-wipe-row">
+      <input type="checkbox" id="uninstall-wipe">
+      <span>
+        <span class="check-label">Also delete all cache and saved data</span>
+        <span class="field-help" id="uninstall-wipe-help"></span>
+      </span>
+    </label>
+    <p class="field-help" id="uninstall-hub-note">Games keep their own saves, like stats and replays, outside Toki Hub,
+      so those stay.</p>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" data-close><span>Cancel</span></button>
+      <button type="button" class="btn btn-danger" id="uninstall-hub-ok"><span>Uninstall</span></button>
     </div>
   </dialog>
 </body>

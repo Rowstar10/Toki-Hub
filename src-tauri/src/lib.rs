@@ -8,7 +8,7 @@
 //! install one it swaps the exe and starts the new one with `--updated`, which waits for the old
 //! copy to close and then deletes it.
 //!
-//! Command line (for testing): `Toki Hub.exe [--data-dir <folder>] [check]`.
+//! Command line (for testing): `Toki Hub.exe [--data-dir <folder>] [check | uninstall [--wipe]]`.
 //!
 //! On Android (see `mobile_run`), games are apps: the hub downloads their APKs and asks Android to
 //! install, start and remove them, through the Android plugin in `../plugins/device`. Its own
@@ -36,7 +36,7 @@ use tauri_plugin_opener::OpenerExt;
 use toki_hub_core::catalog::Catalog;
 use toki_hub_core::sources::unquote;
 #[cfg(desktop)]
-use toki_hub_core::updates::{remove_old_exe, swap_exe};
+use toki_hub_core::updates::{old_exe, remove_old_exe, swap_exe};
 use toki_hub_core::updates::UpdateSource;
 #[cfg(desktop)]
 use toki_hub_core::{migrate, paths};
@@ -231,6 +231,95 @@ async fn apply_update(app: AppHandle, hub: HubState<'_>) -> Answer<()> {
     }
 }
 
+/// For the uninstall dialog: how much Toki Hub keeps on this computer.
+#[tauri::command]
+async fn storage(hub: HubState<'_>) -> Answer<Value> {
+    work(&hub, |hub| Ok(hub.storage())).await
+}
+
+/// Uninstall Toki Hub. On a computer, with `wipe` its data and the games it installed are deleted
+/// first; then it closes, and a hidden command waits for it to close and deletes the exe and
+/// what was still in use (its log, the window's browser data). On a phone, Android is asked to
+/// remove the app, and deletes all its data with it.
+#[tauri::command]
+async fn uninstall_hub(app: AppHandle, hub: HubState<'_>, wipe: bool) -> Answer<()> {
+    #[cfg(mobile)]
+    {
+        let package = app.config().identifier.clone();
+        let _ = wipe;
+        log::line("Asking Android to uninstall Toki Hub");
+        return work(&hub, move |hub| {
+            hub.uninstall_hub(false)?;
+            hub.remove_app(&package)
+        })
+        .await;
+    }
+    #[cfg(desktop)]
+    {
+        let Some((exe, _)) = RELAUNCH.get().cloned() else { return Err("Toki Hub does not know where it is.".into()) };
+        let mut folders = work(&hub, move |hub| hub.uninstall_hub(wipe)).await?;
+        if wipe {
+            // The window's own browser data: choices it remembers, and its caches
+            if let Ok(web) = app.path().app_local_data_dir() {
+                if web.file_name().and_then(|name| name.to_str()) == Some(app.config().identifier.as_str()) {
+                    folders.push(web);
+                }
+            }
+        }
+        log::line(&format!("Uninstalling Toki Hub{}", if wipe { " and everything it keeps" } else { "" }));
+        remove_after_exit(&exe, &folders).map_err(|error| format!("Could not uninstall Toki Hub: {error}"))?;
+        app.exit(0);
+        Ok(())
+    }
+}
+
+/// Start a hidden command that waits for Toki Hub to close, then deletes its exe (and the one an
+/// update left behind) and `folders`. Windows won't delete a running exe, so this can't be done
+/// from inside. Paths cmd could misread (with % or ") are left alone.
+#[cfg(windows)]
+fn remove_after_exit(exe: &Path, folders: &[PathBuf]) -> std::io::Result<()> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let quoted = |path: &Path| {
+        let text = path.display().to_string();
+        (!text.contains(['%', '"'])).then(|| format!("\"{text}\""))
+    };
+    let pause = "ping -n 2 127.0.0.1 >nul";
+    let mut steps = vec!["ping -n 3 127.0.0.1 >nul".to_string()];
+    for file in [exe.to_path_buf(), old_exe(exe)].iter().filter_map(|file| quoted(file)) {
+        steps.push(format!("for /l %i in (1,1,15) do @if exist {file} (del /f /q {file} >nul 2>&1 & if exist {file} {pause})"));
+    }
+    for folder in folders.iter().filter_map(|folder| quoted(folder)) {
+        steps.push(format!("for /l %i in (1,1,15) do @if exist {folder} (rmdir /s /q {folder} >nul 2>&1 & if exist {folder} {pause})"));
+    }
+    std::process::Command::new("cmd.exe")
+        .raw_arg(format!("/d /s /c \"{}\"", steps.join(" & ")))
+        .creation_flags(CREATE_NO_WINDOW)
+        .current_dir(std::env::temp_dir())
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map(|_| ())
+}
+
+#[cfg(all(desktop, not(windows)))]
+fn remove_after_exit(exe: &Path, folders: &[PathBuf]) -> std::io::Result<()> {
+    std::process::Command::new("sh")
+        .arg("-c")
+        .arg("sleep 2; rm -f -- \"$1\" \"$2\"; shift 2; for folder in \"$@\"; do rm -rf -- \"$folder\"; done")
+        .arg("sh")
+        .arg(exe)
+        .arg(old_exe(exe))
+        .args(folders)
+        .current_dir("/")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map(|_| ())
+}
+
 #[tauri::command]
 async fn pick_folder(app: AppHandle) -> Answer<Option<String>> {
     #[cfg(mobile)]
@@ -285,10 +374,14 @@ fn desktop_run() {
     let mut args = original_args.iter();
     let mut data_dir = None;
     let mut check = false;
+    let mut uninstall = false;
+    let mut wipe = false;
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--data-dir" => data_dir = args.next().map(PathBuf::from),
             "check" => check = true,
+            "uninstall" => uninstall = true,
+            "--wipe" => wipe = true,
             _ => {}
         }
     }
@@ -355,6 +448,19 @@ fn desktop_run() {
     });
     let hub = Hub::new(options);
 
+    if uninstall {
+        // What Settings > Uninstall does, without the window (for testing)
+        let result = hub.uninstall_hub(wipe).map_err(|error| error.0).and_then(|folders| {
+            let exe = RELAUNCH.get().map(|(exe, _)| exe.clone()).ok_or("Toki Hub does not know where it is.")?;
+            remove_after_exit(&exe, &folders).map_err(|error| error.to_string())
+        });
+        log::line(&match &result {
+            Ok(()) => format!("Uninstalling Toki Hub{}", if wipe { " and everything it keeps" } else { "" }),
+            Err(error) => format!("Could not uninstall Toki Hub: {error}"),
+        });
+        std::process::exit(if result.is_ok() { 0 } else { 1 });
+    }
+
     let result = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
@@ -381,7 +487,7 @@ fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Sync +
     tauri::generate_handler![
         state, poll, reload, changelog, install, update_game, cancel, uninstall, launch, stop,
         open_folder, open_log, open_place, save_settings, clear_token, pick_folder,
-        check_for_updates, download_update, apply_update
+        check_for_updates, download_update, apply_update, storage, uninstall_hub
     ]
 }
 

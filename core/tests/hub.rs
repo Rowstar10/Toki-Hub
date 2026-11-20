@@ -30,6 +30,24 @@ fn shipped_catalog_has_no_problems() {
         hu_taong.changelog,
         Some(Changelog::Github { repo: "Rowstar10/Hu-Taong".into(), path: "CHANGELOG.md".into(), reference: String::new() })
     );
+    assert_eq!(build.runs_on(), "Python 3.12 and pygame 2.6.1");
+    assert_eq!(hu_taong.version("0.1").unwrap().build_for("windows").unwrap().runs_on(), "Python 3.12");
+}
+
+/// The screen shows what a build needs to run (in Settings > About), never where it downloads from.
+#[test]
+fn state_says_what_builds_run_on_not_where_they_come_from() {
+    let world = World::new();
+    let source = json!({"type": "github-archive", "repo": "someone/their-game", "ref": "main"});
+    write_game(&world.catalog(), "game", &game_with(vec![
+        version_launching("2.0", source.clone(), json!({"type": "python", "path": "main.py", "packages": ["pygame==2.6.1", "numpy"]})),
+        version_launching("1.0", source, json!({"type": "executable", "path": "game.exe"})),
+    ]));
+    let state = world.hub().state();
+    let versions = state["games"][0]["versions"].as_array().unwrap();
+    assert_eq!(versions[0]["build"]["runs_on"], "Python 3.12, pygame 2.6.1 and numpy");
+    assert_eq!(versions[1]["build"]["runs_on"], "");
+    assert!(!state.to_string().contains("someone"), "{state}");
 }
 
 // ---------- Changelogs ----------
@@ -661,4 +679,51 @@ fn only_catalog_images_are_served() {
     assert!(hub.image("game", "game.json").is_none());
     assert!(hub.image("game", "../secret.png").is_none());
     assert!(hub.image("nope", "icon.png").is_none());
+}
+
+// ---------- Uninstalling Toki Hub ----------
+
+#[test]
+fn uninstalling_toki_hub_keeps_everything_unless_told_to_wipe() {
+    let world = World::new();
+    let build = world.dir.path().join("my-build");
+    std::fs::create_dir_all(&build).unwrap();
+    std::fs::write(build.join("main.py"), "print('hi')").unwrap();
+    write_game(&world.catalog(), "game", &game_with(vec![
+        version_with("1.0", json!({"type": "local", "path": build.to_string_lossy()}))]));
+    // Games go to a folder the player chose, which holds other things too
+    let games = world.dir.path().join("My Games");
+    std::fs::create_dir_all(games.join("Something else")).unwrap();
+    let hub = world.hub();
+    hub.save_settings(&json!({"install_dir": games.to_string_lossy()})).unwrap();
+    assert_eq!(install_and_wait(&hub, "game", "1.0")["status"], "done");
+    std::fs::create_dir_all(world.data().join("logs")).unwrap();
+    std::fs::write(world.data().join("logs/hub.log"), "still open").unwrap();
+    let storage = hub.storage();
+    assert_eq!(storage["versions"], 1);
+    assert!(storage["bytes"].as_u64().unwrap() > 0, "{storage}");
+
+    assert_eq!(hub.uninstall_hub(false).unwrap(), Vec::<PathBuf>::new());
+    assert!(hub.installer.installed_version("game", "1.0").is_some(), "without wiping, the games stay");
+    assert!(world.data().join("settings.json").is_file(), "and so do the settings");
+
+    let left = hub.uninstall_hub(true).unwrap();
+    assert_eq!(left, vec![world.data()], "the data folder goes once Toki Hub has closed");
+    assert!(!games.join("game").exists(), "the game it installed is gone");
+    assert!(games.join("Something else").is_dir(), "the rest of the chosen folder is not Toki Hub's");
+    assert!(!world.data().join("settings.json").exists(), "settings and caches are gone");
+    assert!(world.data().join("logs/hub.log").is_file(), "its log is still open, so it waits");
+}
+
+#[test]
+fn toki_hub_is_not_uninstalled_mid_download() {
+    let world = World::new();
+    world.web.route("/big.zip", || Reply::Slow(64 * 1024 * 200));
+    write_game(&world.catalog(), "game", &game_with(vec![version_with("1.0", url_source(&world, "/big.zip"))]));
+    let hub = world.hub();
+    let task = hub.install("game", "1.0").unwrap();
+    wait_for("the download to start", || (hub.installer.tasks()[0]["received"].as_u64().unwrap() > 0).then_some(()));
+    let error = hub.uninstall_hub(true).unwrap_err();
+    assert!(error.0.contains("Wait for the downloads"), "{error}");
+    hub.cancel(task["id"].as_str().unwrap());
 }

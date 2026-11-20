@@ -12,9 +12,9 @@ const ICON_PATHS = {
   settings: '<path d="M4 7h9M18 7h2M4 17h3M12 17h8"/><circle cx="15.5" cy="7" r="2.3"/><circle cx="9.5" cy="17" r="2.3"/>',
   refresh: '<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4"/>',
   warning: '<path d="M12 4 2.8 19.5h18.4zM12 10v4.5M12 17.2v.3"/>',
-  source: '<path d="M7 18.5a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 9.5a4.5 4.5 0 0 1-.5 9z"/>',
   info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8v.2"/>',
   update: '<path d="M12 20V8.5m0 0-5 5M12 8.5l5 5M5 4.5h14"/>',
+  chevron: '<path d="M6.5 9.5 12 15l5.5-5.5"/>',
 };
 
 const PLATFORM_NAMES = { windows: "Windows", macos: "macOS", linux: "Linux", android: "Android", any: "any platform" };
@@ -30,6 +30,7 @@ const ui = {
   pollTimer: null,
   changelogs: {},           // game id -> "loading", then {versions, from, error} from the hub
   notesOpen: new Set(),     // "game id/version" whose full notes are shown ("Show more")
+  versionsFolded: false,    // the versions list is folded away (remembered: "versionsFolded")
 };
 
 /* ---------- Talking to the hub ---------- */
@@ -41,7 +42,7 @@ const COMMAND_ARGS = {
   launch: ["gameId", "version"], stop: ["gameId", "version"],
   open_folder: ["gameId", "version"], open_log: ["gameId", "version"], open_place: ["which"],
   save_settings: ["changes"], clear_token: [], pick_folder: [],
-  check_for_updates: [], download_update: [], apply_update: [],
+  check_for_updates: [], download_update: [], apply_update: [], storage: [], uninstall_hub: ["wipe"],
 };
 
 async function api(name, ...args) {
@@ -246,16 +247,15 @@ function renderDetail() {
       el("div", { class: "headline-text" },
         el("h1", { class: "game-title", text: game.title }),
         game.tagline ? el("p", { class: "tagline", text: game.tagline }) : null,
-        game.tags.length ? el("div", { class: "tags" }, game.tags.map((t) => el("span", { class: "tag" }, el("span", { text: t })))) : null)),
+        game.tags.length ? el("div", { class: "tags" }, game.tags.map((t) => el("span", { class: "tag" }, el("span", { text: t })))) : null),
+      el("div", { class: "headline-about" },
+        el("h2", { class: "section-title", text: "About" }),
+        el("p", { class: "about-text", text: game.description || "No description yet." }),
+        game.developer ? el("div", { class: "developer", text: `By ${game.developer}` }) : null)),
     ...[updateBanner(game)].filter(Boolean),   // (replaceChildren would show a null as the text "null")
     el("section", { class: "panel action-bar" }, actionBar(game, version)),
     el("div", { class: "columns" },
-      el("div", { class: "stack" },
-        version ? notesPanel(game, version) : null,
-        el("section", { class: "panel" },
-          el("h2", { class: "section-title", text: "About" }),
-          el("p", { class: "about-text", text: game.description || "No description yet." }),
-          game.developer ? el("div", { class: "developer", text: `By ${game.developer}` }) : null)),
+      el("div", { class: "stack" }, version ? notesPanel(game, version) : null),
       versionsPanel(game, version)));
   detail.scrollTop = scroll;
 }
@@ -332,7 +332,6 @@ function actionBar(game, version) {
 
   const meta = [];
   if (version.build) {
-    meta.push(el("span", {}, icon("source"), version.build.source));
     if (version.build.note) meta.push(el("span", { class: "note" }, icon("info"), version.build.note));
   } else if (version.platforms.length) {
     meta.push(el("span", {}, icon("info"), `Builds exist for ${version.platforms.map(platformName).join(", ")} only.`));
@@ -422,10 +421,20 @@ function plainText(text) {
 function versionsPanel(game, selected) {
   const latest = game.versions[0];
   const update = gameUpdate(game.id);
-  return el("section", { class: "panel" },
-    el("h2", { class: "section-title" }, "Versions", el("span", { class: "count", text: game.versions.length })),
+  const open = !ui.versionsFolded;
+  const toggle = () => {
+    ui.versionsFolded = open;
+    store("versionsFolded", open ? "1" : "");
+    renderDetail();
+  };
+  return el("section", { class: `panel versions${open ? "" : " folded"}` },
+    el("h2", { class: "section-title" },
+      el("button", { type: "button", class: "fold-toggle", "aria-expanded": open ? "true" : "false", "aria-controls": "version-list",
+        title: open ? "Hide the versions" : "Show the versions", onclick: toggle },
+        "Versions", el("span", { class: "count", text: game.versions.length }), icon("chevron"))),
+    !open ? null :
     game.versions.length === 0 ? el("p", { class: "muted", text: "No versions in the catalog yet." }) :
-      el("ul", { class: "version-list" }, game.versions.map((v) => {
+      el("ul", { class: "version-list", id: "version-list" }, game.versions.map((v) => {
         const badges = [];
         if (v === latest) badges.push(["Latest", "latest"]);
         if (isRunning(game.id, v.version)) badges.push(["Running", "running"]);
@@ -741,6 +750,69 @@ function openDialog(id) {
   document.getElementById(id).showModal();
 }
 
+// What the games run on, from each version's build for this device: "Hu Taong v0.5 to v1.8:
+// Python 3.12 and pygame 2.6.1". Neighbouring versions that need the same are listed together.
+function runsOnList() {
+  const rows = [];
+  for (const game of games()) {
+    let group = null;
+    for (const v of game.versions) {                  // newest first
+      const runsOn = v.build?.runs_on || "";
+      if (group && runsOn && group.runsOn === runsOn) { group.oldest = v.version; continue; }
+      group = runsOn ? { title: game.title, newest: v.version, oldest: v.version, runsOn } : null;
+      if (group) rows.push(group);
+    }
+  }
+  return rows.map(({ title, newest, oldest, runsOn }) => el("li", {},
+    el("span", { class: "runs-on-game", text: newest === oldest ? `${title} ${vlabel(newest)}` : `${title} ${vlabel(oldest)} to ${vlabel(newest)}` }),
+    el("span", { text: runsOn })));
+}
+
+function renderAbout() {
+  const rows = runsOnList();
+  document.getElementById("about-runs-on").replaceChildren(...rows);
+  document.getElementById("about-runs-on-block").hidden = rows.length === 0;
+}
+
+/* ---------- Uninstalling Toki Hub ---------- */
+
+async function openUninstallHub() {
+  document.getElementById("settings-dialog").close();
+  const phone = onPhone();
+  const wipe = document.getElementById("uninstall-wipe");
+  wipe.checked = false;
+  document.getElementById("uninstall-wipe-row").hidden = phone;
+  document.getElementById("uninstall-hub-text").textContent = phone
+    ? "Android will ask you to confirm. Toki Hub's cache and saved data are deleted along with it. Games you installed stay on your phone as their own apps."
+    : "Toki Hub closes and deletes itself. Your games, settings and downloads stay on this computer for if you come back, unless you tick the box.";
+  const help = document.getElementById("uninstall-wipe-help");
+  help.textContent = "Settings and your GitHub token, logs, downloads, the Python Toki Hub set up, and every game it installed.";
+  renderUninstallButton();
+  openDialog("uninstall-hub-dialog");
+  if (phone) return;
+  try {
+    const storage = await api("storage");
+    const versions = storage.versions === 1 ? "1 game version" : `${storage.versions} game versions`;
+    help.textContent += ` That's ${versions}, ${formatBytes(storage.bytes) || "0 B"} in all.`;
+  } catch { /* the size is only a nicety */ }
+}
+
+function renderUninstallButton() {
+  const wipe = document.getElementById("uninstall-wipe").checked;
+  document.querySelector("#uninstall-hub-ok span").textContent = wipe ? "Uninstall and delete everything" : "Uninstall";
+}
+
+async function uninstallHub() {
+  const wipe = !onPhone() && document.getElementById("uninstall-wipe").checked;
+  const button = document.getElementById("uninstall-hub-ok");
+  button.disabled = true;
+  Toki.say("goodbye");
+  // On a computer Toki Hub closes once it has tidied up; on a phone, Android asks to confirm
+  const done = await attempt(() => api("uninstall_hub", wipe), "Could not uninstall Toki Hub");
+  button.disabled = false;
+  if (done !== undefined) document.getElementById("uninstall-hub-dialog").close();
+}
+
 function openSettings() {
   const s = ui.data.settings;
   const installDir = document.getElementById("set-install-dir");
@@ -760,6 +832,8 @@ function openSettings() {
   document.getElementById("place-data").textContent = ui.data.places.data;
   document.getElementById("place-data").title = ui.data.places.data;
   document.getElementById("hub-version").textContent = `Toki Hub ${ui.data.hub_version}`;
+  renderAbout();
+  document.getElementById("uninstall-hub-help").textContent = `Remove Toki Hub from this ${onPhone() ? "phone" : "computer"}.`;
   renderUpdate();
   openDialog("settings-dialog");
 }
@@ -826,9 +900,13 @@ function wireUp() {
   document.getElementById("btn-update").addEventListener("click", openUpdate);
   document.getElementById("update-now").addEventListener("click", startUpdate);
   document.getElementById("btn-check-updates").addEventListener("click", () => checkForUpdates(true));
+  document.getElementById("btn-uninstall-hub").addEventListener("click", openUninstallHub);
+  document.getElementById("uninstall-wipe").addEventListener("change", renderUninstallButton);
+  document.getElementById("uninstall-hub-ok").addEventListener("click", uninstallHub);
 }
 
 async function start() {
+  ui.versionsFolded = recall("versionsFolded") === "1";
   Toki.init();
   wireUp();
   try {

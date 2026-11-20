@@ -8,9 +8,9 @@ use serde_json::{json, Map, Value};
 use crate::catalog::{Build, Catalog, Game, LaunchKind, IMAGE_TYPES};
 use crate::changelog::Changelogs;
 use crate::device::Device;
-use crate::installer::Installer;
+use crate::installer::{folder_size, remove_tree, Installer};
 use crate::launcher::{system_opener, Launcher, Opener};
-use crate::paths::{expand_home, is_within, which};
+use crate::paths::{expand_home, home, is_within, which};
 use crate::runtime::{Runtimes, PYPI};
 use crate::settings::Settings;
 use crate::sources::{http_agent, SourceResolver, GITHUB_API, GITHUB_WEB};
@@ -297,6 +297,74 @@ impl Hub {
         self.installer.uninstall(game_id, version)
     }
 
+    /// For the uninstall dialog: how much Toki Hub keeps on this computer (its data folder, and
+    /// the games it installed wherever they are), and how many game versions that is.
+    pub fn storage(&self) -> Value {
+        let installed = self.installer.installed();
+        let folders: Vec<PathBuf> =
+            installed.values().flat_map(|versions| versions.values()).filter_map(|info| info["path"].as_str().map(PathBuf::from)).collect();
+        let outside = folders.iter().filter(|folder| !is_within(folder, &self.data_dir)).map(|folder| folder_size(folder)).sum::<u64>();
+        json!({"bytes": folder_size(&self.data_dir) + outside, "versions": folders.len()})
+    }
+
+    /// Uninstalling Toki Hub itself: the part done while it is still open. Refused while a game
+    /// is running or a download is under way.
+    ///
+    /// With `wipe`, everything Toki Hub keeps is deleted: the games it installed (just their
+    /// version folders, since a chosen install folder may hold other things too) and its data
+    /// folder (settings and token, downloads, the Python it set up, caches), apart from its log,
+    /// which is still open. Returns the folders left to delete once Toki Hub has closed. A game's
+    /// own saves, kept by the game wherever it likes, are not Toki Hub's to delete.
+    ///
+    /// On a phone there is nothing to do here: Android deletes an app's data with the app.
+    pub fn uninstall_hub(&self, wipe: bool) -> Result<Vec<PathBuf>> {
+        if let Some(running) = self.launcher.running().first() {
+            let id = running["game_id"].as_str().unwrap_or_default();
+            let title = self.catalog().game(id).map(|game| game.title.clone()).unwrap_or_else(|_| "your game".into());
+            return fail(format!("Close {title} first, then uninstall Toki Hub."));
+        }
+        let busy = |task: &Value| matches!(task["status"].as_str(), Some("queued" | "downloading" | "installing"));
+        if self.installer.tasks().iter().any(busy) {
+            return fail("Wait for the downloads to finish, or cancel them, then uninstall Toki Hub.");
+        }
+        if !wipe || self.device.is_some() {
+            return Ok(Vec::new());
+        }
+        let mut left = Vec::new();
+        for info in self.installer.installed().values().flat_map(|versions| versions.values()) {
+            let Some(folder) = info["path"].as_str().map(PathBuf::from) else { continue };
+            if remove_tree(&folder).is_err() {
+                left.push(folder.clone());
+            }
+            if let Some(game_folder) = folder.parent() {
+                let _ = std::fs::remove_dir(game_folder); // the game's folder, once it is empty
+            }
+        }
+        if is_own_data_dir(&self.data_dir) {
+            for entry in std::fs::read_dir(&self.data_dir).into_iter().flatten().flatten() {
+                if entry.file_name() == "logs" {
+                    continue;
+                }
+                let path = entry.path();
+                let _ = match entry.file_type() {
+                    Ok(kind) if kind.is_dir() => remove_tree(&path),
+                    _ => std::fs::remove_file(&path),
+                };
+            }
+            left.push(self.data_dir.clone());
+        }
+        Ok(left)
+    }
+
+    /// On a phone: ask Android to remove an app by its package name (Toki Hub's own, to uninstall
+    /// it). Android asks the player first.
+    pub fn remove_app(&self, package: &str) -> Result<()> {
+        match &self.device {
+            Some(device) => device.uninstall(package),
+            None => fail("Only a phone removes apps."),
+        }
+    }
+
     pub fn launch(&self, game_id: &str, version: &str) -> Result<Value> {
         if self.device.is_some() {
             let (device, package) = self.app(game_id, version)?;
@@ -451,6 +519,14 @@ impl Hub {
     }
 }
 
+/// A folder Toki Hub made for its data, safe to delete whole: never a drive or a home folder.
+fn is_own_data_dir(dir: &Path) -> bool {
+    dir.is_absolute()
+        && dir.components().count() > 2
+        && !home().starts_with(dir)
+        && ["cache", "runtimes", "tools", "settings.json"].iter().any(|name| dir.join(name).exists())
+}
+
 /// A game's update, if one is out: (its newest installed version, the newest version with a build
 /// for `platform`), when the second is newer and not installed yet.
 fn update_for(game: &Game, installed: Option<&Value>, platform: &str) -> Option<(String, String)> {
@@ -466,7 +542,7 @@ fn update_for(game: &Game, installed: Option<&Value>, platform: &str) -> Option<
 fn build_json(build: &Build) -> Value {
     json!({
         "platform": build.platform,
-        "source": build.source_label(),
+        "runs_on": build.runs_on(),
         "launch": build.launch.kind,
         "note": build.note,
     })
