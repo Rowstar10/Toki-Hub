@@ -190,6 +190,7 @@ code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-siz
 .headline-about .section-title::before { width: 4px; height: 13px; }
 .headline-about .about-text { font-size: 14px; color: var(--ink-soft); }
 .headline-about .developer { margin-top: 6px; }
+.about { margin-top: 18px; }
 
 .action-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 18px; margin-top: 16px; }
 .action-version { display: flex; flex-direction: column; min-width: 130px; }
@@ -433,8 +434,6 @@ code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-siz
 /* ---------- Smaller windows ---------- */
 @media (max-width: 1100px) {
   .columns { grid-template-columns: minmax(0, 1fr); }
-  .headline { flex-wrap: wrap; }
-  .headline-about { flex-basis: 100%; padding: 12px 0 0; border-left: none; border-top: 1px solid var(--line); }
 }
 @media (max-width: 820px) {
   body { overflow: auto; height: auto; min-height: 100%; }
@@ -464,8 +463,8 @@ code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-siz
   .game-card.selected::before { left: 12px; right: 12px; top: auto; bottom: -2px; width: auto; height: 4px; }
   .game-card .game-icon { width: 40px; height: 40px; border-radius: 10px; }
   .hero { height: 170px; border-radius: 16px; }
-  .headline { margin: -44px 8px 0; padding: 14px 14px 14px 22px; gap: 12px; flex-wrap: wrap; align-items: center; }
-  .headline-about .about-text { font-size: 13.5px; }
+  .headline { margin: -44px 8px 0; padding: 14px 14px 14px 22px; gap: 12px; flex-wrap: nowrap; align-items: center; }
+  .about { margin-top: 12px; }
   .headline .game-icon { width: 64px; height: 64px; border-radius: 16px; }
   .game-title { font-size: 26px; }
   .tagline { font-size: 14px; }
