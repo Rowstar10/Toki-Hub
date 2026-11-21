@@ -10,6 +10,43 @@
   "changelog": { "repo": "Rowstar10/Hu-Taong", "path": "CHANGELOG.md" },
   "versions": [
     {
+      "version": "1.9",
+      "date": "2026-11-21",
+      "notes": "Controller support, mouse steering, online quick emotes, Practice Mode (against the AI or a wall), Goals on or off for any match, rules changed from the pause menu for that match only, settings to export and import, talisman stats, achievements, a Wind Gust that blows any way, a slightly slower ball, sounds for every surface the ball bounces off and for every talisman, computer players that go back round a ball that's got past them, a harder Hard and Insane, three game modes renamed, a Modes page beside the Talismans (power-ups till now), and Match Setup and the settings pages laid out afresh.\n- Controllers in matches and menus, and steering with the mouse\n- Practice Mode against the AI or a wall; Goals on or off for any match\n- Match settings from the pause menu change that match only\n- 21 achievements, talisman stats, and sounds for every bounce and talisman\n- Game modes on a page of their own beside the Talismans; Match Setup, Match settings, Display and Audio laid out afresh\n- Quick emotes online, settings to export and import, a Wind Gust that blows any way\n- Online needs both players on 1.9",
+      "builds": [
+        {
+          "platform": "any",
+          "source": {
+            "type": "github-archive",
+            "repo": "Rowstar10/Hu-Taong",
+            "ref": "55bd4ebe6e8689c8b51d991f4b3c66a01bc15598"
+          },
+          "launch": {
+            "type": "python",
+            "path": "main.py",
+            "python": "3.12",
+            "packages": [
+              "pygame==2.6.1"
+            ]
+          }
+        },
+        {
+          "platform": "android",
+          "source": {
+            "type": "github-release",
+            "repo": "Rowstar10/Hu-Taong",
+            "tag": "v1.9",
+            "asset": "Hu-Taong-1.9-android.apk"
+          },
+          "launch": {
+            "type": "android",
+            "package": "com.rowstar10.hutaong.v1_9"
+          },
+          "note": "Touch controls. Plays online with Hu Taong 1.9 on a PC."
+        }
+      ]
+    },
+    {
       "version": "1.8",
       "date": "2026-11-18",
       "notes": "Three physics to choose from, a Speed Cap so a charge shot can always be reached, the Black Hole talisman and game mode, and a review of the talismans.\n- Physics: Current, Classic or v0.9, and a Speed Cap, under Ball & Paddles\n- Black Hole: pulls the ball in, grows with each ball it swallows, then collapses into Twin Balls and mini black holes; also a game mode, in place of Portal Pair\n- Portal Pair: ovals with a dotted way out, half a second inside\n- Talismans reviewed: Talismans at Once, effects that last through points, Tombstones that wear down, fade-outs\n- A ball squeezed between two paddles rattles between them again\n- Online needs both players on 1.8",

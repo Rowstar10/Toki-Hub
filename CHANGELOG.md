@@ -4,6 +4,11 @@ Every version of Toki Hub, newest first. Toki Hub shows this in Settings › Abo
 each release's notes start with its version's section. A new version needs its section here before
 it can be released: a line saying what it is about, then a "- " line for each change.
 
+## 0.3.16 — 2026-11-21
+
+Hu Taong 1.9 joins the catalog.
+- Hu Taong 1.9, on PC and Android
+
 ## 0.3.15 — 2026-11-21
 
 About starts with a quick summary, and Toki Hub's own update history is in Settings.
