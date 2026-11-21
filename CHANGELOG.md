@@ -4,6 +4,11 @@ Every version of Toki Hub, newest first. Toki Hub shows this in Settings › Abo
 each release's notes start with its version's section. A new version needs its section here before
 it can be released: a line saying what it is about, then a "- " line for each change.
 
+## 0.3.17 — 2026-11-21
+
+Hu Taong 1.9's menus get Back at the bottom left.
+- Hu Taong 1.9: Back sits at the bottom left of every menu, and Match settings has More Settings (reinstall 1.9 to get it)
+
 ## 0.3.16 — 2026-11-21
 
 Hu Taong 1.9 joins the catalog.

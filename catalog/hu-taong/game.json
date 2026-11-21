@@ -19,7 +19,7 @@
           "source": {
             "type": "github-archive",
             "repo": "Rowstar10/Hu-Taong",
-            "ref": "55bd4ebe6e8689c8b51d991f4b3c66a01bc15598"
+            "ref": "b501d0d3b03bbd5dd1d8c84b88f866c491793ddd"
           },
           "launch": {
             "type": "python",
