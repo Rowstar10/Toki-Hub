@@ -135,6 +135,15 @@ jobs:
         with:
           key: android
 
+      # Gradle's downloads (Maven Central turns away GitHub's machines when they ask too often)
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('src-tauri/gen/android/**/*.gradle*', 'src-tauri/gen/android/gradle.properties', 'src-tauri/gen/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-
+
       - name: Signing key
         id: key
         env:
@@ -154,13 +163,14 @@ jobs:
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
-          # Gradle retries each download (see gen/android/gradle.properties); if Maven Central still
-          # says "too many requests", the whole build goes again after a pause (Rust is built by then)
+          # Gradle retries each download (see gen/android/gradle.properties); if one still fails (Maven
+          # Central says "too many requests", which the plugin portal can pass on as "not found"), the
+          # whole build goes again after a pause (Rust is built by then)
           set -o pipefail
           for attempt in 1 2 3; do
             if npx tauri android build --apk --ci --target aarch64 x86_64 2>&1 | tee "$RUNNER_TEMP/apk.log"; then break; fi
-            if [[ $attempt == 3 ]] || ! grep -q "429\|Too Many Requests" "$RUNNER_TEMP/apk.log"; then exit 1; fi
-            echo "::warning::Maven Central was busy (429); building again in $((attempt * 90)) s"
+            if [[ $attempt == 3 ]] || ! grep -q "429\|Too Many Requests\|Could not resolve\|Could not find\|Could not GET" "$RUNNER_TEMP/apk.log"; then exit 1; fi
+            echo "::warning::A download failed (Maven Central is often busy); building again in $((attempt * 90)) s"
             sleep $((attempt * 90))
           done
           mkdir -p dist
