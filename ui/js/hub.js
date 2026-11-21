@@ -30,7 +30,8 @@ const ui = {
   pollTimer: null,
   changelogs: {},           // game id -> "loading", then {versions, from, error} from the hub
   notesOpen: new Set(),     // "game id/version" whose full notes are shown ("Show more")
-  versionsFolded: false,    // the versions list is folded away (remembered: "versionsFolded")
+  folded: {},               // panel name ("notes", "about", "versions") -> folded away (remembered: "<name>Folded")
+  allVersions: new Set(),   // game ids whose whole versions list is shown ("Show more")
 };
 
 /* ---------- Talking to the hub ---------- */
@@ -273,10 +274,9 @@ function renderDetail() {
     el("div", { class: "columns" },
       el("div", { class: "stack" },
         version ? notesPanel(game, version) : null,
-        el("section", { class: "panel" },
-          el("h2", { class: "section-title", text: "About" }),
+        foldable("about", "about-panel", ["About"], [
           el("p", { class: "about-text", text: game.description || "No description yet." }),
-          game.developer ? el("div", { class: "developer", text: `By ${game.developer}` }) : null)),
+          game.developer ? el("div", { class: "developer", text: `By ${game.developer}` }) : null])),
       versionsPanel(game, version)));
   detail.scrollTop = scroll;
 }
@@ -383,13 +383,29 @@ function notesPanel(game, version) {
     if (ui.notesOpen.has(key)) ui.notesOpen.delete(key); else ui.notesOpen.add(key);
     renderDetail();
   };
-  return el("section", { class: "panel notes" },
-    el("div", { class: "notes-head" },
-      el("h2", { class: "section-title", text: `What's in ${vlabel(version.version)}` }),
-      version.date ? el("span", { class: "notes-date", text: formatDate(version.date) }) : null),
-    notes ? formatNotes(notes) : el("p", { class: "muted", text: "No release notes for this version." }),
-    hasMore ? el("button", { class: "notes-more", type: "button", "aria-expanded": open ? "true" : "false", onclick: toggle },
-      open ? "Show less" : "Show more") : null);
+  return foldable("notes", "notes",
+    [`What's in ${vlabel(version.version)}`, version.date ? el("span", { class: "notes-date", text: formatDate(version.date) }) : null],
+    [notes ? formatNotes(notes) : el("p", { class: "muted", text: "No release notes for this version." }),
+      hasMore ? el("button", { class: "notes-more", type: "button", "aria-expanded": open ? "true" : "false", onclick: toggle },
+        open ? "Show less" : "Show more") : null]);
+}
+
+// The panels whose heading folds them away: What's in, About and Versions. Each is remembered on
+// its own, for every game.
+const FOLDABLE = ["notes", "about", "versions"];
+
+function foldable(name, kind, heading, body) {
+  const open = !ui.folded[name];
+  const toggle = () => {
+    ui.folded[name] = open;
+    store(`${name}Folded`, open ? "1" : "");
+    renderDetail();
+  };
+  return el("section", { class: `panel ${kind}${open ? "" : " folded"}` },
+    el("h2", { class: "section-title" },
+      el("button", { type: "button", class: "fold-toggle", "aria-expanded": open ? "true" : "false",
+        title: open ? "Fold away" : "Open", onclick: toggle }, heading, icon("chevron"))),
+    open ? body : null);
 }
 
 // The version's section of the game's changelog, once it has arrived.
@@ -439,23 +455,27 @@ function plainText(text) {
   return text.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/\*\*|__|`/g, "");
 }
 
+// The newest few versions; "Show more" lists them all. A version chosen from further down stays in
+// view below them.
+const VERSIONS_SHOWN = 4;
+
 function versionsPanel(game, selected) {
   const latest = game.versions[0];
   const update = gameUpdate(game.id);
-  const open = !ui.versionsFolded;
-  const toggle = () => {
-    ui.versionsFolded = open;
-    store("versionsFolded", open ? "1" : "");
+  const all = ui.allVersions.has(game.id);
+  const short = game.versions.length > VERSIONS_SHOWN + 1;     // (no button for just one more)
+  let shown = game.versions;
+  if (short && !all) {
+    shown = game.versions.slice(0, VERSIONS_SHOWN);
+    if (selected && !shown.includes(selected)) shown.push(selected);
+  }
+  const showMore = () => {
+    if (all) ui.allVersions.delete(game.id); else ui.allVersions.add(game.id);
     renderDetail();
   };
-  return el("section", { class: `panel versions${open ? "" : " folded"}` },
-    el("h2", { class: "section-title" },
-      el("button", { type: "button", class: "fold-toggle", "aria-expanded": open ? "true" : "false", "aria-controls": "version-list",
-        title: open ? "Hide the versions" : "Show the versions", onclick: toggle },
-        "Versions", el("span", { class: "count", text: game.versions.length }), icon("chevron"))),
-    !open ? null :
+  return foldable("versions", "versions", ["Versions", el("span", { class: "count", text: game.versions.length })], [
     game.versions.length === 0 ? el("p", { class: "muted", text: "No versions in the catalog yet." }) :
-      el("ul", { class: "version-list", id: "version-list" }, game.versions.map((v) => {
+      el("ul", { class: "version-list" }, shown.map((v) => {
         const badges = [];
         if (v === latest) badges.push(["Latest", "latest"]);
         if (isRunning(game.id, v.version)) badges.push(["Running", "running"]);
@@ -471,7 +491,9 @@ function versionsPanel(game, selected) {
         el("span", { class: "version-name", text: vlabel(v.version) }),
         v.date ? el("span", { class: "version-date", text: formatDate(v.date) }) : null,
         el("span", { class: "badges" }, badges.map(([text, kind]) => el("span", { class: `badge badge-${kind}` }, el("span", { text }))))));
-      })));
+      })),
+    short ? el("button", { class: "notes-more", type: "button", "aria-expanded": all ? "true" : "false", onclick: showMore },
+      all ? "Show less" : "Show more") : null]);
 }
 
 function updateProgress() {
@@ -928,7 +950,7 @@ function wireUp() {
 }
 
 async function start() {
-  ui.versionsFolded = recall("versionsFolded") === "1";
+  for (const name of FOLDABLE) ui.folded[name] = recall(`${name}Folded`) === "1";
   Toki.init();
   wireUp();
   try {
