@@ -727,3 +727,25 @@ fn toki_hub_is_not_uninstalled_mid_download() {
     assert!(error.0.contains("Wait for the downloads"), "{error}");
     hub.cancel(task["id"].as_str().unwrap());
 }
+
+// ---------- Toki Hub's own update history ----------
+
+/// CHANGELOG.md (shown in Settings > About > Update history) reads as versions with dates and
+/// notes, newest first, and has a section for this version: a release can't go out without one.
+#[test]
+fn update_history_has_this_version() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..");
+    let history = toki_hub_core::changelog::history(&std::fs::read_to_string(root.join("CHANGELOG.md")).unwrap());
+    let versions: Vec<&str> = history.as_array().unwrap().iter().map(|entry| entry["version"].as_str().unwrap()).collect();
+    let cargo = std::fs::read_to_string(root.join("src-tauri/Cargo.toml")).unwrap();
+    let current = cargo.lines().find_map(|line| line.strip_prefix("version = \"")).unwrap().trim_end_matches('"');
+    assert_eq!(versions.first().copied(), Some(current),
+        "CHANGELOG.md needs a section for {current} at the top (see how the others are written)");
+    for entry in history.as_array().unwrap() {
+        assert!(entry["date"].as_str().unwrap().len() == 10, "{entry}: its heading needs a date, like ## 0.3.15 — 2026-11-21");
+        assert!(!entry["notes"].as_str().unwrap().is_empty(), "{entry}: say what changed");
+    }
+    let mut sorted = versions.clone();
+    sorted.sort_by_key(|v| std::cmp::Reverse(toki_hub_core::versions::version_key(v)));
+    assert_eq!(versions, sorted, "newest first");
+}

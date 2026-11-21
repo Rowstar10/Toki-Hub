@@ -32,6 +32,7 @@ const ui = {
   notesOpen: new Set(),     // "game id/version" whose full notes are shown ("Show more")
   folded: {},               // panel name ("notes", "about", "versions") -> folded away (remembered: "<name>Folded")
   allVersions: new Set(),   // game ids whose whole versions list is shown ("Show more")
+  aboutOpen: new Set(),     // game ids whose full About is shown ("Show more")
 };
 
 /* ---------- Talking to the hub ---------- */
@@ -43,7 +44,7 @@ const COMMAND_ARGS = {
   launch: ["gameId", "version"], stop: ["gameId", "version"],
   open_folder: ["gameId", "version"], open_log: ["gameId", "version"], open_place: ["which"],
   save_settings: ["changes"], clear_token: [], pick_folder: [],
-  check_for_updates: [], download_update: [], apply_update: [], storage: [], uninstall_hub: ["wipe"],
+  check_for_updates: [], download_update: [], apply_update: [], storage: [], uninstall_hub: ["wipe"], update_history: [],
 };
 
 async function api(name, ...args) {
@@ -274,9 +275,7 @@ function renderDetail() {
     el("div", { class: "columns" },
       el("div", { class: "stack" },
         version ? notesPanel(game, version) : null,
-        foldable("about", "about-panel", ["About"], [
-          el("p", { class: "about-text", text: game.description || "No description yet." }),
-          game.developer ? el("div", { class: "developer", text: `By ${game.developer}` }) : null])),
+        foldable("about", "about-panel", ["About"], aboutBody(game))),
       versionsPanel(game, version)));
   detail.scrollTop = scroll;
 }
@@ -388,6 +387,24 @@ function notesPanel(game, version) {
     [notes ? formatNotes(notes) : el("p", { class: "muted", text: "No release notes for this version." }),
       hasMore ? el("button", { class: "notes-more", type: "button", "aria-expanded": open ? "true" : "false", onclick: toggle },
         open ? "Show less" : "Show more") : null]);
+}
+
+// The game's summary, with "Show more" for its full description (when it has both).
+function aboutBody(game) {
+  const summary = (game.summary || "").trim();
+  const full = (game.description || "").trim();
+  const hasMore = Boolean(summary && full && full !== summary);
+  const open = hasMore && ui.aboutOpen.has(game.id);
+  const toggle = () => {
+    if (ui.aboutOpen.has(game.id)) ui.aboutOpen.delete(game.id); else ui.aboutOpen.add(game.id);
+    renderDetail();
+  };
+  return [
+    el("p", { class: "about-text", text: (open ? full : summary || full) || "No description yet." }),
+    hasMore ? el("button", { class: "notes-more", type: "button", "aria-expanded": open ? "true" : "false", onclick: toggle },
+      open ? "Show less" : "Show more") : null,
+    game.developer ? el("div", { class: "developer", text: `By ${game.developer}` }) : null,
+  ];
 }
 
 // The panels whose heading folds them away: What's in, About and Versions. Each is remembered on
@@ -817,6 +834,23 @@ function renderAbout() {
   document.getElementById("about-runs-on-block").hidden = rows.length === 0;
 }
 
+/* ---------- Toki Hub's update history ---------- */
+
+async function openHistory() {
+  const history = await attempt(() => api("update_history"), "Could not show the update history");
+  if (!history) return;
+  document.getElementById("settings-dialog").close();
+  document.getElementById("history-list").replaceChildren(...history.map((entry) =>
+    el("section", { class: `history-entry${entry.version === ui.data.hub_version ? " current" : ""}` },
+      el("div", { class: "history-head" },
+        el("span", { class: "version-name", text: vlabel(entry.version) }),
+        entry.version === ui.data.hub_version ? el("span", { class: "badge badge-installed" }, el("span", { text: "This version" })) : null,
+        entry.date ? el("span", { class: "version-date", text: formatDate(entry.date) }) : null),
+      formatNotes(entry.notes))));
+  openDialog("history-dialog");
+  document.getElementById("history-dialog").scrollTop = 0;   // newest first (focus lands on Close, at the bottom)
+}
+
 /* ---------- Uninstalling Toki Hub ---------- */
 
 async function openUninstallHub() {
@@ -944,6 +978,7 @@ function wireUp() {
   document.getElementById("update-now").addEventListener("click", startUpdate);
   document.getElementById("btn-check-updates").addEventListener("click", () => checkForUpdates(true));
   document.getElementById("btn-uninstall-hub").addEventListener("click", openUninstallHub);
+  document.getElementById("btn-history").addEventListener("click", openHistory);
   window.addEventListener("resize", () => document.querySelectorAll(".tags").forEach(fadeTagEdges));
   document.getElementById("uninstall-wipe").addEventListener("change", renderUninstallButton);
   document.getElementById("uninstall-hub-ok").addEventListener("click", uninstallHub);

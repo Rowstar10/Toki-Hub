@@ -61,6 +61,8 @@ const UPDATE_ASSET_SUFFIX: &str = if cfg!(target_os = "android") {
 static RELAUNCH: OnceLock<(PathBuf, Vec<String>)> = OnceLock::new();
 
 static BUILT_IN_CATALOG: Dir = include_dir!("$CARGO_MANIFEST_DIR/../catalog");
+/// Toki Hub's update history, for Settings > About > Update history.
+const UPDATE_HISTORY: &str = include_str!("../../CHANGELOG.md");
 
 type HubState<'a> = State<'a, Hubs>;
 type Answer<T> = Result<T, String>;
@@ -229,6 +231,12 @@ async fn apply_update(app: AppHandle, hub: HubState<'_>) -> Answer<()> {
         app.exit(0);
         Ok(())
     }
+}
+
+/// Every version of Toki Hub, newest first, with its date and what changed.
+#[tauri::command]
+fn update_history() -> Value {
+    toki_hub_core::changelog::history(UPDATE_HISTORY)
 }
 
 /// For the uninstall dialog: how much Toki Hub keeps on this computer.
@@ -489,7 +497,7 @@ fn commands() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Sync +
     tauri::generate_handler![
         state, poll, reload, changelog, install, update_game, cancel, uninstall, launch, stop,
         open_folder, open_log, open_place, save_settings, clear_token, pick_folder,
-        check_for_updates, download_update, apply_update, storage, uninstall_hub
+        check_for_updates, download_update, apply_update, storage, uninstall_hub, update_history
     ]
 }
 

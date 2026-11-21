@@ -496,6 +496,7 @@ impl Hub {
             "id": game.id,
             "title": game.title,
             "tagline": game.tagline,
+            "summary": game.summary,
             "description": game.description,
             "developer": game.developer,
             "tags": game.tags,

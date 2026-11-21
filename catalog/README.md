@@ -24,8 +24,9 @@ library. GitHub also checks the whole catalog on every push (the build fails if 
 {
   "title": "Hu Taong",
   "tagline": "Pong, the Wangsheng Funeral Parlor way.",
+  "summary": "What the game is, in a line or two.",
   "description": "Longer text for the About panel.",
-  "developer": "Rowstar10",
+  "developer": "Your name",
   "tags": ["Arcade", "Pong"],
   "accent": "#d94a3a",
   "icon": "icon.png",
@@ -35,6 +36,9 @@ library. GitHub also checks the whole catalog on every push (the build fails if 
 ```
 
 Only `title` is required. `accent` is a colour for the stripe beside the game's title.
+
+The About panel shows `summary`, with a "Show more" button for `description` (which can say more
+about its features). With only one of the two, that one is shown, with no button.
 
 ## Changelog
 

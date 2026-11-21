@@ -16,8 +16,8 @@ pub const PLATFORMS: [&str; 5] = ["windows", "macos", "linux", "android", "any"]
 pub const IMAGE_TYPES: [&str; 6] = ["png", "jpg", "jpeg", "webp", "gif", "svg"];
 const SOURCE_TYPES: [&str; 4] = ["url", "github-release", "github-archive", "local"];
 const LAUNCH_TYPES: [&str; 4] = ["executable", "python", "open", "android"];
-const GAME_FIELDS: [&str; 10] =
-    ["title", "tagline", "description", "developer", "tags", "icon", "cover", "accent", "changelog", "versions"];
+const GAME_FIELDS: [&str; 11] =
+    ["title", "tagline", "summary", "description", "developer", "tags", "icon", "cover", "accent", "changelog", "versions"];
 const VERSION_FIELDS: [&str; 4] = ["version", "date", "notes", "builds"];
 const BUILD_FIELDS: [&str; 4] = ["platform", "source", "launch", "note"];
 const LAUNCH_FIELDS: [&str; 6] = ["type", "path", "args", "python", "packages", "package"];
@@ -153,6 +153,9 @@ pub struct Game {
     pub folder: PathBuf,
     pub title: String,
     pub tagline: String,
+    /// What the game is, in a line or two: the About panel's short version ("Show more" shows
+    /// `description`).
+    pub summary: String,
     pub description: String,
     pub developer: String,
     pub tags: Vec<String>,
@@ -342,6 +345,7 @@ fn load_game(dir: &Path, problems: &mut Vec<String>) -> Option<Game> {
         id: id.clone(),
         folder: dir.to_path_buf(),
         tagline: check.text(&data, "tagline", "", false),
+        summary: check.text(&data, "summary", "", false),
         description: check.text(&data, "description", "", false),
         developer: check.text(&data, "developer", "", false),
         tags,

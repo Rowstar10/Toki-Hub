@@ -113,7 +113,10 @@
 
       <div class="field">
         <span class="field-label">About</span>
-        <span class="about-version" id="hub-version"></span>
+        <div class="update-row">
+          <span class="about-version" id="hub-version"></span>
+          <button type="button" class="btn btn-ghost btn-small" id="btn-history"><span>Update history</span></button>
+        </div>
         <div id="about-runs-on-block">
           <span class="field-help">What each game needs to run. Toki Hub installs it for every game by itself, so
             there's nothing to set up.</span>
@@ -185,6 +188,14 @@
     <div class="modal-actions">
       <button type="button" class="btn btn-ghost" data-close><span>Cancel</span></button>
       <button type="button" class="btn btn-danger" id="confirm-ok"><span>Uninstall</span></button>
+    </div>
+  </dialog>
+
+  <dialog id="history-dialog" class="modal">
+    <h2 class="modal-title">Toki Hub updates</h2>
+    <div class="history" id="history-list"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-primary" data-close><span>Close</span></button>
     </div>
   </dialog>
 

@@ -48,8 +48,13 @@ press the reload button in the hub.
 
 ## Releasing a new version
 
-Change `version` in [`src-tauri/Cargo.toml`](src-tauri/Cargo.toml) and push. GitHub builds Toki Hub.exe
-and Toki-Hub-android.apk, publishes them as a release, and running copies offer the update. The APK
+1. Add a section for the new version at the top of [`CHANGELOG.md`](CHANGELOG.md): a line saying what
+   it is about, then a `- ` line for each change. Toki Hub shows it in Settings › About › Update history,
+   and it starts the release's notes. (The tests fail without it, so the release waits for it.)
+2. Change `version` in [`src-tauri/Cargo.toml`](src-tauri/Cargo.toml) to match, and push.
+
+GitHub builds Toki Hub.exe and Toki-Hub-android.apk, publishes them as a release, and running copies
+offer the update. The APK
 is signed with the `ANDROID_KEYSTORE` and `ANDROID_KEYSTORE_PASSWORD` secrets (the same key every
 time, or phones can't update).
 

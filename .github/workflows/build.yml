@@ -85,7 +85,10 @@ jobs:
             echo "Release $tag already exists. Bump version in src-tauri/Cargo.toml to publish a new one."
             exit 0
           fi
-          cat > notes.md <<EOF
+          # What's new: this version's section of CHANGELOG.md (copies offering the update show it)
+          awk -v v="$VERSION" '/^## /{on = ($2 == v); next} on' CHANGELOG.md | sed '/./,$!d' > notes.md
+          cat >> notes.md <<EOF
+
           Download **Toki Hub.exe** below and double-click it. Nothing to install. Copies already running offer this update by themselves.
 
           Windows may say it "protected your PC", because the exe is not code-signed. Click **More info**, then **Run anyway**.

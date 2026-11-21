@@ -32,6 +32,39 @@ pub fn sections(text: &str) -> Vec<(String, String)> {
     found.into_iter().map(|(version, body)| (version, body.join("\n").trim().to_string())).collect()
 }
 
+/// Toki Hub's own update history (its CHANGELOG.md, built in): each version with its date (from a
+/// heading like `## 0.3.15 — 2026-11-21`) and notes, in the file's order, newest first.
+pub fn history(text: &str) -> Value {
+    let dates: HashMap<String, String> = text
+        .lines()
+        .filter_map(|line| line.strip_prefix("## "))
+        .filter_map(|heading| Some((heading_version(heading)?, heading_date(heading))))
+        .collect();
+    sections(text)
+        .into_iter()
+        .map(|(version, notes)| {
+            let date = dates.get(&version).cloned().unwrap_or_default();
+            json!({"version": version, "date": date, "notes": notes})
+        })
+        .collect()
+}
+
+/// The `YYYY-MM-DD` in a heading, if it has one.
+fn heading_date(heading: &str) -> String {
+    heading
+        .split_whitespace()
+        .map(|word| word.trim_matches(|c: char| !c.is_ascii_digit()))
+        .find(|word| {
+            let bytes = word.as_bytes();
+            bytes.len() == 10
+                && bytes[4] == b'-'
+                && bytes[7] == b'-'
+                && bytes.iter().enumerate().all(|(i, b)| i == 4 || i == 7 || b.is_ascii_digit())
+        })
+        .unwrap_or_default()
+        .to_string()
+}
+
 fn heading_version(heading: &str) -> Option<String> {
     let word = heading.split_whitespace().next()?.trim_start_matches('[').trim_end_matches(']');
     let word = word.strip_prefix(['v', 'V']).unwrap_or(word);

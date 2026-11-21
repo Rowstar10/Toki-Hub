@@ -422,6 +422,14 @@ code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-siz
   font-weight: 700; color: var(--ink-soft); }
 .place-row code { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .about-version { font-size: 13.5px; font-weight: 700; color: var(--ink-soft); }
+.history { display: flex; flex-direction: column; gap: 10px; }
+.history-entry { padding: 12px 14px; border-radius: 12px; background: var(--sky-50); }
+.history-entry.current { background: #fff; box-shadow: inset 0 0 0 1.5px var(--sky-300); }
+.history-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.history-head .version-date { margin-left: auto; }
+.history-entry p { margin: 0 0 4px; }
+.history-entry ul { margin: 2px 0 0; padding-left: 20px; }
+.history-entry li::marker { color: var(--sky-500); }
 .runs-on { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; }
 .runs-on li { display: flex; flex-wrap: wrap; gap: 2px 12px; padding: 8px 12px; border-radius: 10px; background: var(--sky-50);
   color: var(--ink-soft); font-weight: 700; }
