@@ -2,7 +2,8 @@
 //!
 //! 1. `check` asks the GitHub API for the repository's releases and picks the newest one tagged
 //!    `<prefix><version>` (for example `tauri-v0.3.0`) that is newer than this copy and has a file
-//!    for this computer. The repository is private, so this uses the token from Settings.
+//!    for this computer. The releases repository is public, so no token is needed (one set in
+//!    Settings is still sent).
 //! 2. `start_download` downloads that file and checks it against the sha256 that GitHub records
 //!    for every release file, so a damaged or swapped download is never used.
 //! 3. The app then calls `swap_exe` and restarts: a running exe cannot be overwritten on Windows,

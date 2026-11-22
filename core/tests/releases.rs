@@ -270,6 +270,38 @@ fn real_hu_taong_installs_from_its_public_releases_signed_out() {
     assert!(folder.join("Hu Taong.exe").is_file() && folder.join("_internal").join("Resources").is_dir());
 }
 
+/// The real thing for Toki Hub itself: an older copy, signed out, finds the newest Toki Hub in
+/// its public releases repository and downloads it, checked against its sha256. Needs the
+/// internet: cargo test -- --ignored real_
+#[test]
+#[ignore]
+fn real_toki_hub_updates_from_its_public_releases_signed_out() {
+    let world = World::new();
+    let mut options = HubOptions::new(vec![world.catalog()], world.data());
+    options.hub_version = "0.3.0".into();
+    options.check_releases = false;
+    options.updates = Some(toki_hub_core::updates::UpdateSource {
+        repo: "Rowstar10/Toki-Hub-Releases".into(),
+        tag_prefix: "tauri-v".into(),
+        asset_suffix: ".exe".into(),
+    });
+    let hub = Hub::new(options);
+    assert_eq!(hub.state()["settings"]["has_token"], false);
+    assert_eq!(hub.state()["settings"]["token_from_env"], false, "unset GITHUB_TOKEN for this test");
+
+    let found = hub.check_for_updates();
+    println!("found: {} {}", found["status"], found["version"]);
+    assert_eq!(found["status"], "available", "{found}");
+    hub.download_update().unwrap();
+    let update = wait_for("the update to download", || {
+        let update = hub.poll(0)["update"].clone();
+        matches!(update["status"].as_str(), Some("ready" | "error")).then_some(update)
+    });
+    assert_eq!(update["status"], "ready", "{update}");
+    let file = hub.update_file().unwrap();
+    assert!(std::fs::metadata(&file).unwrap().len() > 1_000_000, "a whole exe");
+}
+
 /// The UI redraws when a release's builds arrive for versions game.json already lists (the number
 /// of versions doesn't change then).
 #[test]
