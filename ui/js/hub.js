@@ -490,8 +490,15 @@ function versionsPanel(game, selected) {
     if (all) ui.allVersions.delete(game.id); else ui.allVersions.add(game.id);
     renderDetail();
   };
+  // For a game published as releases: whether its list could be checked just now
+  const releases = ui.data.releases?.[game.id];
+  let releaseNote = null;
+  if (releases?.problem) {
+    releaseNote = releases.checked ? `${releases.problem} These are the versions known on ${formatDate(releases.checked)}.` : releases.problem;
+  }
   return foldable("versions", "versions", ["Versions", el("span", { class: "count", text: game.versions.length })], [
-    game.versions.length === 0 ? el("p", { class: "muted", text: "No versions in the catalog yet." }) :
+    releaseNote ? el("p", { class: "release-note", text: releaseNote }) : null,
+    game.versions.length === 0 ? el("p", { class: "muted", text: releases ? (releases.problem ? "No versions to show yet." : "Checking for versions…") : "No versions in the catalog yet." }) :
       el("ul", { class: "version-list" }, shown.map((v) => {
         const badges = [];
         if (v === latest) badges.push(["Latest", "latest"]);
@@ -616,6 +623,11 @@ async function poll() {
   try {
     const update = await api("poll", ui.lastEvent);
     setConnected(true);
+    if (update.catalog_revision !== ui.data.catalog_revision) {
+      // New versions arrived (a game's releases were checked): draw everything afresh
+      ui.changelogs = {};
+      applyState(await api("state"));
+    }
     Object.assign(ui.data, { installed: update.installed, game_updates: update.game_updates, tasks: update.tasks,
       running: update.running, update: update.update });
     noticeTaskChanges();

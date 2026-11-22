@@ -73,6 +73,37 @@ missing from the changelog, or a changelog that can't be fetched and was never s
 the `notes`, with no "Show more". Keep `notes` short: a line saying what the version is about,
 then at most four `- ` bullets for the main changes.
 
+## Published as releases (games whose source is private)
+
+A game can be published as releases of a public GitHub repository instead of (or as well as) listing
+its versions: each release is a version, tagged `v1.9`, and its files are that version's builds. Toki
+Hub lists the releases from GitHub, signed out, so the game's own repository can stay private and
+players need no account or token. This is the one place to set the repository and the file names:
+
+```json
+"releases": {
+  "repo": "Rowstar10/Hu-Taong-Releases",
+  "builds": [
+    { "platform": "windows", "asset": "Hu-Taong-{version}-windows.zip",
+      "launch": { "type": "executable", "path": "Hu Taong.exe" } },
+    { "platform": "android", "asset": "Hu-Taong-{version}-android.apk",
+      "launch": { "type": "android", "package": "com.rowstar10.hutaong.v{version_}" } }
+  ]
+}
+```
+
+- `{version}` is the version (`1.9`), `{version_}` the same with underscores (`1_9`). `tag` sets the
+  release tag (default `"v{version}"`; a repository shared by several games could use
+  `"hu-taong-v{version}"`).
+- A release's notes become its version's notes: the first paragraph is the summary, and Show more
+  shows the rest. Anything after a `---` line (like how to download it) stays on GitHub's page.
+- A zip is unpacked without its top folder, so `path` is relative to inside it.
+- Versions also listed under `versions` keep their own date and notes there and get their builds from
+  their release. A version listed there with no `builds` is fine.
+- Toki Hub checks for new releases when it starts and on reload, and keeps the last list, so the
+  versions still show offline or when GitHub's limit for signed-out checks (60 an hour) is reached.
+  Each file is checked against the sha256 GitHub publishes for it.
+
 ## Versions and builds
 
 ```json
