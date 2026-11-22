@@ -287,3 +287,16 @@ fn the_revision_goes_up_when_builds_arrive_for_listed_versions() {
     hub.check_releases();
     assert_eq!(hub.poll(0)["catalog_revision"].as_u64().unwrap(), after, "nothing new: no redraw");
 }
+
+/// When checking fails (here, GitHub's limit), the UI redraws too, to say why.
+#[test]
+fn the_revision_goes_up_when_checking_fails() {
+    let world = World::new();
+    write_game(&world.catalog(), "game", &game_json());
+    world.web.route(LIST, || Reply::Body(403, vec![("X-RateLimit-Remaining".into(), "0".into())], vec![]));
+    let hub = hub(&world, &world.web.base);
+    let before = hub.poll(0)["catalog_revision"].as_u64().unwrap();
+    let state = hub.check_releases();
+    assert!(state["catalog_revision"].as_u64().unwrap() > before);
+    assert!(state["releases"]["game"]["problem"].as_str().unwrap().contains("limit"));
+}

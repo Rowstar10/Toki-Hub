@@ -604,8 +604,9 @@ impl Library {
         self.merge();
     }
 
-    /// Ask GitHub about each game's releases, then show what's new.
+    /// Ask GitHub about each game's releases, then show what's new (or why it couldn't check).
     fn check_releases(&self) {
+        let before = self.status();
         let files = self.files.read().unwrap().clone();
         for game in &files.games {
             if let Some(source) = &game.releases {
@@ -613,6 +614,9 @@ impl Library {
             }
         }
         self.merge();
+        if self.status() != before {
+            self.revision.fetch_add(1, Ordering::SeqCst); // the UI redraws to say so
+        }
     }
 
     /// The catalog with each game's releases (as last known) merged into its versions.

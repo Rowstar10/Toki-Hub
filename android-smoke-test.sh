@@ -14,7 +14,15 @@ mkdir -p "$OUT"
 step=0
 
 shot() { step=$((step + 1)); adb exec-out screencap -p > "$OUT/$step-$1.png"; echo "screenshot: $step-$1"; }
-fail() { shot failed || true; adb logcat -d > "$OUT/logcat.txt" || true; echo "FAILED: $*"; exit 1; }
+fail() {
+  shot failed || true
+  adb logcat -d > "$OUT/logcat.txt" || true
+  screen > "$OUT/failed-screen.xml" 2>/dev/null || true
+  # What the hub's screen said, for the log (its notes say why when something couldn't be done)
+  grep -o 'text="[^"]*"' "$OUT/failed-screen.xml" 2>/dev/null | sed 's/^text="//; s/"$//' | grep -v '^$' | head -40 || true
+  echo "FAILED: $*"
+  exit 1
+}
 
 # The screen's contents (Android's own views, and the hub's page inside its web view)
 screen() { adb shell uiautomator dump /sdcard/screen.xml > /dev/null 2>&1 && adb exec-out cat /sdcard/screen.xml; }
