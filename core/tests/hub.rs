@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use common::*;
 use serde_json::json;
 use sha2::{Digest, Sha256};
-use toki_hub_core::catalog::{Catalog, Changelog, LaunchKind, Source};
+use toki_hub_core::catalog::{Catalog, LaunchKind};
 use toki_hub_core::installer::MARKER;
 
 fn url_source(world: &World, path: &str) -> serde_json::Value {
@@ -23,15 +23,18 @@ fn shipped_catalog_has_no_problems() {
     let hu_taong = catalog.game("hu-taong").unwrap();
     assert_eq!(hu_taong.title, "Hu Taong");
     assert!(hu_taong.icon.as_ref().unwrap().is_file() && hu_taong.cover.as_ref().unwrap().is_file());
-    let build = hu_taong.version("1.0").unwrap().build_for("windows").unwrap();
-    assert!(matches!(build.source, Source::GithubArchive { .. }));
-    assert_eq!((build.launch.kind, build.launch.path.as_str()), (LaunchKind::Python, "main.py"));
-    assert_eq!(
-        hu_taong.changelog,
-        Some(Changelog::Github { repo: "Rowstar10/Hu-Taong".into(), path: "CHANGELOG.md".into(), reference: String::new() })
-    );
-    assert_eq!(build.runs_on(), "Python 3.12 and pygame 2.6.1");
-    assert_eq!(hu_taong.version("0.1").unwrap().build_for("windows").unwrap().runs_on(), "Python 3.12");
+    // Hu Taong is published as releases of its public releases repo (its source is private): the
+    // versions listed in game.json keep their dates and summaries, and get their builds from there
+    let releases = hu_taong.releases.as_ref().unwrap();
+    assert_eq!(releases.repo, "Rowstar10/Hu-Taong-Releases");
+    let windows = releases.builds.iter().find(|b| b.platform == "windows").unwrap();
+    assert_eq!((windows.asset.as_str(), windows.launch.kind, windows.launch.path.as_str()),
+        ("Hu-Taong-{version}-windows.zip", LaunchKind::Executable, "Hu Taong.exe"));
+    let android = releases.builds.iter().find(|b| b.platform == "android").unwrap();
+    assert_eq!(android.launch.package, "com.rowstar10.hutaong.v{version_}");
+    assert_eq!(hu_taong.changelog, None, "the notes come from the releases");
+    let first = hu_taong.version("1.0").unwrap();
+    assert!(first.builds.is_empty() && !first.notes.is_empty() && !first.date.is_empty());
 }
 
 /// The screen shows what a build needs to run (in Settings > About), never where it downloads from.

@@ -6,8 +6,8 @@ A launcher for all my games and every version of them.
 
 ## Download
 
-Get **Toki Hub.exe** from the [latest release](https://github.com/Rowstar10/Toki-Hub/releases/latest) and
-double-click it. Nothing to install.
+Get **Toki Hub.exe** from the [latest release](https://github.com/Rowstar10/Toki-Hub-Releases/releases/latest)
+and double-click it. Nothing to install.
 
 Windows may say it "protected your PC", because the exe isn't code-signed. Click **More info**, then
 **Run anyway**.
@@ -17,11 +17,13 @@ games install as apps: the hub downloads each one and Android asks you to instal
 
 ## Setup
 
-Nothing to set up. This repository and the game repositories are public, so the hub downloads games
-and its own updates without a token (games come from GitHub's ordinary download links).
+Nothing to set up, and no GitHub account needed. Toki Hub and its games are published on public
+releases-only repositories ([Toki-Hub-Releases](https://github.com/Rowstar10/Toki-Hub-Releases),
+[Hu-Taong-Releases](https://github.com/Rowstar10/Hu-Taong-Releases)), so the source repositories can be
+private: the hub lists versions and downloads them, and its own updates, signed out.
 
 A [fine-grained GitHub token](https://github.com/settings/personal-access-tokens/new) (Settings, top
-right) is only needed for games in private repositories: give it read-only **Contents** access to them.
+right) is only needed for a game whose catalog entry downloads from a private repository.
 
 ## What it does
 
@@ -52,11 +54,17 @@ press the reload button in the hub.
    it is about, then a `- ` line for each change. Toki Hub shows it in Settings › About › Update history,
    and it starts the release's notes. (The tests fail without it, so the release waits for it.)
 2. Change `version` in [`src-tauri/Cargo.toml`](src-tauri/Cargo.toml) to match, and push.
+3. When GitHub's **Build Toki Hub** run of that commit has passed (it builds Toki Hub.exe and
+   Toki-Hub-android.apk and tries both, the APK on an emulated phone), run `py release.py` in this
+   folder. It publishes those two files on [Toki-Hub-Releases](https://github.com/Rowstar10/Toki-Hub-Releases)
+   with your GitHub CLI login (`gh auth login` once; no token is stored), and running copies offer
+   the update.
 
-GitHub builds Toki Hub.exe and Toki-Hub-android.apk, publishes them as a release, and running copies
-offer the update. The APK
-is signed with the `ANDROID_KEYSTORE` and `ANDROID_KEYSTORE_PASSWORD` secrets (the same key every
-time, or phones can't update).
+The APK is signed with the `ANDROID_KEYSTORE` and `ANDROID_KEYSTORE_PASSWORD` secrets (the same key
+every time, or phones can't update).
+
+A game's new version is published from its own repository (Hu Taong: `py release.py 1.10` there), and
+Toki Hub lists it from its releases by itself: no Toki Hub release is needed.
 
 ## Building it yourself
 

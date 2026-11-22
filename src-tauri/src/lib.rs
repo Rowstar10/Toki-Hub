@@ -8,7 +8,8 @@
 //! install one it swaps the exe and starts the new one with `--updated`, which waits for the old
 //! copy to close and then deletes it.
 //!
-//! Command line (for testing): `Toki Hub.exe [--data-dir <folder>] [check | uninstall [--wipe]]`.
+//! Command line (for testing): `Toki Hub.exe [--data-dir <folder>] [check | uninstall [--wipe] |
+//! install <game> [--version <version>]]`.
 //!
 //! On Android (see `mobile_run`), games are apps: the hub downloads their APKs and asks Android to
 //! install, start and remove them, through the Android plugin in `../plugins/device`. Its own
@@ -42,8 +43,9 @@ use toki_hub_core::updates::UpdateSource;
 use toki_hub_core::{migrate, paths};
 use toki_hub_core::{Hub, HubError, HubOptions};
 
-/// Where updates come from.
-const UPDATE_REPO: &str = "Rowstar10/Toki-Hub";
+/// Where updates come from: the public repository Toki Hub's releases are published on (its source
+/// repository can be private).
+const UPDATE_REPO: &str = "Rowstar10/Toki-Hub-Releases";
 const UPDATE_TAG_PREFIX: &str = "tauri-v";
 /// The release file for this computer (or phone).
 const UPDATE_ASSET_SUFFIX: &str = if cfg!(target_os = "android") {
@@ -281,6 +283,38 @@ async fn uninstall_hub(app: AppHandle, hub: HubState<'_>, wipe: bool) -> Answer<
     }
 }
 
+/// Install a game's version (its newest with a build here, if none is given) and wait for it.
+#[cfg(desktop)]
+fn install_now(hub: &Hub, game_id: &str, version: Option<&str>) -> Result<String, String> {
+    hub.check_releases();
+    let catalog = hub.catalog();
+    let game = catalog.game(game_id).map_err(|error| error.0)?;
+    let platform = paths::current_platform();
+    let version = match version {
+        Some(version) => version.to_string(),
+        None => game
+            .versions
+            .iter()
+            .find(|v| v.build_for(platform).is_some())
+            .map(|v| v.version.clone())
+            .ok_or("it has no version for this computer")?,
+    };
+    let task = hub.install(game_id, &version).map_err(|error| error.0)?;
+    let id = task["id"].as_str().unwrap_or_default().to_string();
+    loop {
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        let Some(task) = hub.installer.tasks().into_iter().find(|t| t["id"] == id.as_str()) else { continue };
+        match task["status"].as_str() {
+            Some("queued" | "downloading" | "installing") => continue,
+            Some("done") => {
+                let folder = hub.installer.version_dir(game_id, &version);
+                return Ok(format!("Installed {} {version} in {}", game.title, folder.display()));
+            }
+            _ => return Err(task["error"].as_str().unwrap_or("it stopped").to_string()),
+        }
+    }
+}
+
 /// Start a hidden command that waits for Toki Hub to close, then deletes its exe (and the one an
 /// update left behind) and `folders`. Windows won't delete a running exe, so this can't be done
 /// from inside. Each step is in brackets: cmd would otherwise run every `&` after a `for` as part
@@ -386,12 +420,16 @@ fn desktop_run() {
     let mut check = false;
     let mut uninstall = false;
     let mut wipe = false;
+    let mut install: Option<String> = None;
+    let mut install_version: Option<String> = None;
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--data-dir" => data_dir = args.next().map(PathBuf::from),
             "check" => check = true,
             "uninstall" => uninstall = true,
             "--wipe" => wipe = true,
+            "install" => install = args.next().cloned(),
+            "--version" => install_version = args.next().cloned(),
             _ => {}
         }
     }
@@ -457,6 +495,16 @@ fn desktop_run() {
             .map_err(|error| HubError(format!("Could not open {}: {error}", path.display())))
     });
     let hub = Hub::new(options);
+
+    if let Some(game_id) = install {
+        // What Install does, without the window (for testing): the newest version unless told
+        let result = install_now(&hub, &game_id, install_version.as_deref());
+        log::line(&match &result {
+            Ok(done) => done.clone(),
+            Err(error) => format!("Could not install {game_id}: {error}"),
+        });
+        std::process::exit(if result.is_ok() { 0 } else { 1 });
+    }
 
     if uninstall {
         // What Settings > Uninstall does, without the window (for testing)

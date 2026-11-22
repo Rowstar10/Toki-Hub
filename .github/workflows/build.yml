@@ -193,42 +193,48 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      # The emulator test is long: it runs for a version that isn't published yet (one about to be
+      # released), or when the workflow is run by hand
+      - name: Is this version being released?
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -1)"
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]] || ! gh release view "tauri-v$version" --repo Rowstar10/Toki-Hub-Releases > /dev/null 2>&1; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "Toki Hub $version is already published: the emulator test is skipped"
+          fi
+
       - uses: actions/download-artifact@v7
+        if: steps.release.outputs.run == 'true'
         with:
           name: Toki Hub for Android
           path: dist
 
       - name: Let the emulator use KVM
+        if: steps.release.outputs.run == 'true'
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      # Hu Taong is installed through the hub when the catalog has an Android version of it, and
-      # that version's APK has been published
+      # Hu Taong's newest published Android version is installed through the hub
       - name: Which game to install
+        if: steps.release.outputs.run == 'true'
         id: game
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          read -r package tag asset < <(python3 -c '
-          import json
-          game = json.load(open("catalog/hu-taong/game.json"))
-          for version in game["versions"]:
-              for build in version["builds"]:
-                  if build["platform"] == "android":
-                      source = build["source"]
-                      print(build["launch"]["package"], source.get("tag", ""), source.get("asset", ""))
-                      raise SystemExit
-          ' || true)
-          if [[ -n "$package" ]] && ! gh release view "$tag" --repo Rowstar10/Hu-Taong --json assets --jq '.assets[].name' 2>/dev/null | grep -qx "$asset"; then
-            echo "::warning::Hu Taong's $tag has no $asset yet, so installing it through the hub is skipped"
-            package=""
-          fi
+          package="$(python3 .github/scripts/catalog.py android-package hu-taong || true)"
+          [[ -n "$package" ]] || echo "::warning::Hu Taong has no published Android version, so installing it through the hub is skipped"
           echo "package=$package" >> "$GITHUB_OUTPUT"
           echo "Hu Taong for Android: ${package:-not tried}"
 
       - name: Try it on an emulated phone
+        if: steps.release.outputs.run == 'true'
         uses: reactivecircus/android-emulator-runner@v2
         env:
           INSTALL_GAME: ${{ steps.game.outputs.package != '' && 'Hu Taong' || '' }}
@@ -256,30 +262,10 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Every Android build's APK is published
+      - name: Every build offered is published
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          missing=0
-          while read -r game version repo tag asset; do
-            if gh release view "$tag" --repo "$repo" --json assets --jq '.assets[].name' 2>/dev/null | grep -qx "$asset"; then
-              echo "ok: $game $version for Android ($asset on $repo $tag)"
-            else
-              echo "::error file=catalog/$game/game.json::$game $version for Android: $repo has no $asset on $tag"
-              missing=1
-            fi
-          done < <(python3 - <<'PY'
-          import json, pathlib
-          for path in sorted(pathlib.Path("catalog").glob("*/game.json")):
-              game = json.loads(path.read_text())
-              for version in game.get("versions", []):
-                  for build in version.get("builds", []):
-                      source = build.get("source", {})
-                      if build.get("platform") == "android" and source.get("type") == "github-release":
-                          print(path.parent.name, version["version"], source["repo"], source["tag"], source["asset"])
-          PY
-          )
-          exit $missing
+        run: python3 .github/scripts/catalog.py check
 
   android-release:
     needs: [windows, android, android-test]

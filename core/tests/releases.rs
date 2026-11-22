@@ -240,3 +240,32 @@ fn the_catalog_checks_releases() {
         assert!(problems.contains(expected), "{expected} not in {problems}");
     }
 }
+
+/// The real thing: Hu Taong's public releases repo, signed out (no token anywhere): every version
+/// listed, and the newest installed. Needs the internet: cargo test -- --ignored real_
+#[test]
+#[ignore]
+fn real_hu_taong_installs_from_its_public_releases_signed_out() {
+    let world = World::new();
+    let catalog = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../catalog");
+    let mut options = HubOptions::new(vec![catalog], world.data());
+    options.platform = "windows".into();
+    options.check_releases = false;
+    let hub = Hub::new(options);
+    assert_eq!(hub.state()["settings"]["has_token"], false);
+    assert_eq!(hub.state()["settings"]["token_from_env"], false, "unset GITHUB_TOKEN for this test");
+
+    let state = hub.check_releases();
+    let game = state["games"].as_array().unwrap().iter().find(|g| g["id"] == "hu-taong").unwrap().clone();
+    let released: Vec<&str> = game["versions"].as_array().unwrap().iter()
+        .filter(|v| v["build"]["platform"] == "windows").map(|v| v["version"].as_str().unwrap()).collect();
+    println!("released for Windows: {released:?}");
+    assert!(released.len() >= 19, "every version from 0.1 on: {released:?}");
+    assert_eq!(state["releases"]["hu-taong"]["from"], "online", "{}", state["releases"]);
+
+    let newest = released[0];
+    let task = install_and_wait(&hub, "hu-taong", newest);
+    assert_eq!(task["status"], "done", "{task}");
+    let folder = hub.installer.version_dir("hu-taong", newest);
+    assert!(folder.join("Hu Taong.exe").is_file() && folder.join("_internal").join("Resources").is_dir());
+}

@@ -4,6 +4,15 @@ Every version of Toki Hub, newest first. Toki Hub shows this in Settings › Abo
 each release's notes start with its version's section. A new version needs its section here before
 it can be released: a line saying what it is about, then a "- " line for each change.
 
+## 0.3.18 — 2026-11-22
+
+Toki Hub and Hu Taong come from public releases, ready for their source to go private.
+- Hu Taong installs as a ready-to-run Windows build, listed from its public releases: no Python to set up, and no GitHub account or token needed
+- New versions of a game show up by themselves, without a Toki Hub update
+- Versions still show with no internet, or when GitHub's limit for checking is reached
+- Each download is checked, and a reinstall keeps the old copy until the new one is in place
+- Toki Hub's own updates come from its public releases
+
 ## 0.3.17 — 2026-11-21
 
 Hu Taong 1.9's menus get Back at the bottom left.
