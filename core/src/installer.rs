@@ -267,7 +267,16 @@ impl Installer {
             for game in games.flatten() {
                 for entry in std::fs::read_dir(game.path()).into_iter().flatten().flatten() {
                     let path = entry.path();
-                    if entry.file_name().to_string_lossy().starts_with(".staging-") && stale(&path) {
+                    let name = entry.file_name().to_string_lossy().into_owned();
+                    if name.starts_with(".staging-") && stale(&path) {
+                        let _ = remove_tree(&path);
+                    } else if let Some(version_folder) = name.strip_prefix(".old-").and_then(|rest| rest.rsplit_once('-')).map(|(v, _)| v) {
+                        // A reinstall that stopped midway: if the new copy never arrived, the old one
+                        // goes back; otherwise it's no longer needed
+                        let target = game.path().join(version_folder);
+                        if !target.exists() && std::fs::rename(&path, &target).is_ok() {
+                            continue;
+                        }
                         let _ = remove_tree(&path);
                     }
                 }
@@ -388,11 +397,7 @@ impl Job {
                 self.game.title, self.version.version
             ));
         }
-        if self.target.exists() {
-            remove_tree(&self.target)?;
-        }
-        move_into_place(staging, &self.target)?;
-        Ok(())
+        swap_into_place(staging, &self.target, &self.task.id)
     }
 
     /// Android: download the APK, then Android's installer takes over (and asks the player).
@@ -575,6 +580,26 @@ pub fn folder_size(folder: &Path) -> u64 {
             _ => entry.metadata().map(|m| m.len()).unwrap_or(0),
         })
         .sum()
+}
+
+/// Put a finished install in place of what's there. The old copy is moved aside first and deleted
+/// only once the new one is in place; if the new one can't be put there, the old one goes back.
+/// (A copy left aside by a crash is dealt with at the next start: see sweep_leftovers.)
+fn swap_into_place(staging: &Path, target: &Path, id: &str) -> Result<()> {
+    if !target.exists() {
+        return move_into_place(staging, target);
+    }
+    let folder = target.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let aside = target.with_file_name(format!(".old-{folder}-{id}"));
+    move_into_place(target, &aside)?;
+    if let Err(error) = move_into_place(staging, target) {
+        let _ = std::fs::rename(&aside, target);
+        return Err(error);
+    }
+    if remove_tree(&aside).is_err() {
+        // A file still held open: the next start deletes it
+    }
+    Ok(())
 }
 
 /// Rename the finished staging folder to its final name. On Windows, antivirus scanners often hold

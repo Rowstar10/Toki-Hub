@@ -1,6 +1,7 @@
 //! Everything the UI can ask for. Every method returns plain JSON for the UI.
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 
 use serde_json::{json, Map, Value};
@@ -11,6 +12,7 @@ use crate::device::Device;
 use crate::installer::{folder_size, remove_tree, Installer};
 use crate::launcher::{system_opener, Launcher, Opener};
 use crate::paths::{expand_home, home, is_within, which};
+use crate::releases::{self, ReleaseLists};
 use crate::runtime::{Runtimes, PYPI};
 use crate::settings::Settings;
 use crate::sources::{http_agent, SourceResolver, GITHUB_API, GITHUB_WEB};
@@ -38,6 +40,9 @@ pub struct HubOptions {
     pub just_updated: bool,
     /// On Android: the phone, which installs, starts and removes the games (they are apps).
     pub device: Option<Arc<dyn Device>>,
+    /// Check games' releases for new versions when the hub starts (in the background). Tests
+    /// turn it off and call `check_releases` themselves.
+    pub check_releases: bool,
 }
 
 impl HubOptions {
@@ -54,6 +59,7 @@ impl HubOptions {
             updates: None,
             just_updated: false,
             device: None,
+            check_releases: true,
         }
     }
 }
@@ -70,7 +76,7 @@ pub struct Hub {
     pub updater: Arc<Updater>,
     just_updated: bool,
     device: Option<Arc<dyn Device>>,
-    catalog: RwLock<Arc<Catalog>>,
+    library: Arc<Library>,
     resolver: Arc<SourceResolver>,
     changelogs: Changelogs,
 }
@@ -106,7 +112,18 @@ impl Hub {
             http_agent(),
             data_dir.join("downloads"),
         );
-        let catalog = Catalog::load(&options.catalog_dirs);
+        let release_settings = settings.clone();
+        let release_lists = ReleaseLists::new(
+            data_dir.join("cache").join("releases"),
+            http_agent(),
+            &options.github_api,
+            Box::new(move || release_settings.github_token()),
+        );
+        let library = Arc::new(Library::new(options.catalog_dirs.clone(), release_lists));
+        if options.check_releases && library.has_releases() {
+            let library = library.clone();
+            std::thread::spawn(move || library.check_releases());
+        }
         let changelogs = Changelogs::new(data_dir.join("cache").join("changelogs"));
         Hub {
             hub_version: options.hub_version,
@@ -120,14 +137,21 @@ impl Hub {
             updater,
             just_updated: options.just_updated,
             device: options.device,
-            catalog: RwLock::new(Arc::new(catalog)),
+            library,
             resolver,
             changelogs,
         }
     }
 
     pub fn catalog(&self) -> Arc<Catalog> {
-        self.catalog.read().unwrap().clone()
+        self.library.catalog()
+    }
+
+    /// Ask GitHub for new versions of the games published as releases (the hub also does this by
+    /// itself when it starts, in the background). Returns the state, with any new versions.
+    pub fn check_releases(&self) -> Value {
+        self.library.check_releases();
+        self.state()
     }
 
     /// The catalog folder people add games to.
@@ -150,6 +174,7 @@ impl Hub {
             "native_window": true,
             "android": self.device.is_some(),
             "just_updated": self.just_updated,
+            "releases": self.library.status(),
         });
         if let (Value::Object(state), Value::Object(changing)) = (&mut state, self.poll(0)) {
             state.extend(changing);
@@ -168,6 +193,8 @@ impl Hub {
             "running": self.launcher.running(),
             "events": self.launcher.events_since(after_event),
             "update": self.updater.to_json(),
+            // Goes up when the games' versions change (new releases found): the UI then redraws
+            "catalog_revision": self.library.revision(),
         })
     }
 
@@ -249,8 +276,9 @@ impl Hub {
     }
 
     pub fn reload(&self) -> Value {
-        *self.catalog.write().unwrap() = Arc::new(Catalog::load(&self.catalog_dirs));
+        self.library.load();
         self.changelogs.forget();
+        self.library.check_releases();
         self.state()
     }
 
@@ -259,7 +287,19 @@ impl Hub {
     /// The game's changelog, split by version (see changelog.rs). Fetched on the first call.
     pub fn changelog(&self, game_id: &str) -> Result<Value> {
         let catalog = self.catalog();
-        Ok(self.changelogs.get(catalog.game(game_id)?, &self.resolver))
+        let game = catalog.game(game_id)?;
+        if game.releases.is_some() {
+            // A game published as releases: each release's notes are its version's full notes
+            let status = self.library.lists.current(game_id);
+            let versions: Map<String, Value> = game
+                .versions
+                .iter()
+                .filter(|v| !v.details.is_empty())
+                .map(|v| (v.version.clone(), Value::String(v.details.clone())))
+                .collect();
+            return Ok(json!({"versions": versions, "from": status.from, "error": status.problem}));
+        }
+        Ok(self.changelogs.get(game, &self.resolver))
     }
 
     pub fn install(&self, game_id: &str, version: &str) -> Result<Value> {
@@ -503,7 +543,7 @@ impl Hub {
             "accent": game.accent,
             "icon": image(&game.icon),
             "cover": image(&game.cover),
-            "changelog": game.changelog.is_some(),
+            "changelog": game.changelog.is_some() || game.releases.is_some(),
             "versions": game.versions.iter().map(|v| {
                 let mut platforms: Vec<&str> = v.builds.iter().map(|b| b.platform.as_str()).collect();
                 platforms.sort();
@@ -517,6 +557,93 @@ impl Hub {
                 })
             }).collect::<Vec<_>>(),
         })
+    }
+}
+
+/// The catalog: the games in the catalog folders, with the versions published in their releases
+/// merged in. Shared with the background check for new releases.
+struct Library {
+    dirs: Vec<PathBuf>,
+    /// The games as the catalog folders list them.
+    files: RwLock<Arc<Catalog>>,
+    /// With their releases' versions added: what the hub shows.
+    merged: RwLock<Arc<Catalog>>,
+    lists: ReleaseLists,
+    revision: AtomicU64,
+}
+
+impl Library {
+    fn new(dirs: Vec<PathBuf>, lists: ReleaseLists) -> Library {
+        let files = Arc::new(Catalog::load(&dirs));
+        let library = Library {
+            dirs,
+            merged: RwLock::new(files.clone()),
+            files: RwLock::new(files),
+            lists,
+            revision: AtomicU64::new(0),
+        };
+        library.merge();
+        library
+    }
+
+    fn catalog(&self) -> Arc<Catalog> {
+        self.merged.read().unwrap().clone()
+    }
+
+    fn revision(&self) -> u64 {
+        self.revision.load(Ordering::SeqCst)
+    }
+
+    fn has_releases(&self) -> bool {
+        self.files.read().unwrap().games.iter().any(|game| game.releases.is_some())
+    }
+
+    /// Read the catalog folders again.
+    fn load(&self) {
+        *self.files.write().unwrap() = Arc::new(Catalog::load(&self.dirs));
+        self.merge();
+    }
+
+    /// Ask GitHub about each game's releases, then show what's new.
+    fn check_releases(&self) {
+        let files = self.files.read().unwrap().clone();
+        for game in &files.games {
+            if let Some(source) = &game.releases {
+                self.lists.refresh(&game.id, source);
+            }
+        }
+        self.merge();
+    }
+
+    /// The catalog with each game's releases (as last known) merged into its versions.
+    fn merge(&self) {
+        let mut catalog = (**self.files.read().unwrap()).clone();
+        for game in &mut catalog.games {
+            if let Some(source) = &game.releases {
+                let listing = self.lists.current(&game.id);
+                game.versions = releases::merge(&game.versions, releases::versions(source, &listing.releases));
+            }
+        }
+        let changed = {
+            let current = self.merged.read().unwrap();
+            current.games.iter().map(|g| (&g.id, g.versions.len())).ne(catalog.games.iter().map(|g| (&g.id, g.versions.len())))
+        };
+        *self.merged.write().unwrap() = Arc::new(catalog);
+        if changed {
+            self.revision.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    /// For the UI: {game id: {"from", "checked", "problem"}} for the games published as releases.
+    fn status(&self) -> Value {
+        let files = self.files.read().unwrap().clone();
+        let status: Map<String, Value> = files
+            .games
+            .iter()
+            .filter(|game| game.releases.is_some())
+            .map(|game| (game.id.clone(), self.lists.current(&game.id).to_json()))
+            .collect();
+        Value::Object(status)
     }
 }
 

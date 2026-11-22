@@ -16,8 +16,12 @@ pub const PLATFORMS: [&str; 5] = ["windows", "macos", "linux", "android", "any"]
 pub const IMAGE_TYPES: [&str; 6] = ["png", "jpg", "jpeg", "webp", "gif", "svg"];
 const SOURCE_TYPES: [&str; 4] = ["url", "github-release", "github-archive", "local"];
 const LAUNCH_TYPES: [&str; 4] = ["executable", "python", "open", "android"];
-const GAME_FIELDS: [&str; 11] =
-    ["title", "tagline", "summary", "description", "developer", "tags", "icon", "cover", "accent", "changelog", "versions"];
+const GAME_FIELDS: [&str; 12] = [
+    "title", "tagline", "summary", "description", "developer", "tags", "icon", "cover", "accent", "changelog", "releases",
+    "versions",
+];
+const RELEASES_FIELDS: [&str; 3] = ["repo", "tag", "builds"];
+const RELEASE_BUILD_FIELDS: [&str; 4] = ["platform", "asset", "launch", "note"];
 const VERSION_FIELDS: [&str; 4] = ["version", "date", "notes", "builds"];
 const BUILD_FIELDS: [&str; 4] = ["platform", "source", "launch", "note"];
 const LAUNCH_FIELDS: [&str; 6] = ["type", "path", "args", "python", "packages", "package"];
@@ -129,7 +133,10 @@ impl Build {
 pub struct Version {
     pub version: String,
     pub date: String,
+    /// A quick summary of what's new.
     pub notes: String,
+    /// Everything that's new, when there's more than `notes` says: its release's notes.
+    pub details: String,
     pub builds: Vec<Build>,
 }
 
@@ -163,8 +170,34 @@ pub struct Game {
     pub icon: Option<PathBuf>,
     pub cover: Option<PathBuf>,
     pub changelog: Option<Changelog>,
-    /// Newest first.
+    /// Where the game's builds are published as GitHub releases, one per version (see releases.rs).
+    pub releases: Option<Releases>,
+    /// Newest first: the ones listed in game.json, then (once known) its releases.
     pub versions: Vec<Version>,
+}
+
+/// A game published as releases of a public GitHub repository: each release is a version, and its
+/// files are that version's builds. Patterns use `{version}` ("1.9") and `{version_}` ("1_9").
+#[derive(Debug, Clone, PartialEq)]
+pub struct Releases {
+    pub repo: String,
+    /// The release tag for a version, like "v{version}".
+    pub tag: String,
+    pub builds: Vec<ReleaseBuild>,
+}
+
+/// One platform's file in each release, and how to start it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReleaseBuild {
+    pub platform: String,
+    pub asset: String,
+    pub launch: Launch,
+    pub note: String,
+}
+
+/// `{version}` and `{version_}` (dots and dashes as underscores) in a release pattern.
+pub fn fill_version(pattern: &str, version: &str) -> String {
+    pattern.replace("{version_}", &version.replace(['.', '-'], "_")).replace("{version}", version)
 }
 
 impl Game {
@@ -353,6 +386,7 @@ fn load_game(dir: &Path, problems: &mut Vec<String>) -> Option<Game> {
         icon: image(&data, "icon", dir, &mut check),
         cover: image(&data, "cover", dir, &mut check),
         changelog: load_changelog(&data, &mut check),
+        releases: load_releases(&data, &mut check),
         title,
         versions: Vec::new(),
     };
@@ -435,6 +469,83 @@ fn load_changelog(data: &Map<String, Value>, check: &mut Checker) -> Option<Chan
     }
 }
 
+/// "releases": {"repo": "Owner/Game-Releases", "tag": "v{version}", "builds": [{"platform":
+/// "windows", "asset": "Game-{version}-windows.zip", "launch": {"type": "executable", "path":
+/// "Game.exe"}}, ...]}
+fn load_releases(data: &Map<String, Value>, check: &mut Checker) -> Option<Releases> {
+    let place = "releases";
+    let Value::Object(fields) = data.get("releases")? else {
+        check.report("", "'releases' must be an object like {\"repo\": \"owner/name\", \"builds\": [...]}");
+        return None;
+    };
+    check.unknown(fields, &RELEASES_FIELDS, place);
+    let repo = check.text(fields, "repo", place, true);
+    if repo.is_empty() {
+        return None;
+    }
+    if !is_repo(&repo) {
+        check.report(place, "'repo' must look like \"Owner/RepoName\"");
+        return None;
+    }
+    let mut tag = check.text(fields, "tag", place, false);
+    if tag.is_empty() {
+        tag = "v{version}".to_string();
+    } else if tag.matches("{version}").count() != 1 || tag.contains("{version_}") {
+        check.report(place, "'tag' must contain {version} once, like \"v{version}\"");
+        return None;
+    }
+    let Some(Value::Array(entries)) = fields.get("builds") else {
+        check.report(place, "'builds' is required and must be a list");
+        return None;
+    };
+    let mut builds: Vec<ReleaseBuild> = Vec::new();
+    for (i, entry) in entries.iter().enumerate() {
+        let place = format!("{place}: builds[{i}]");
+        let Value::Object(entry) = entry else {
+            check.report(&place, "must be an object { ... }");
+            continue;
+        };
+        check.unknown(entry, &RELEASE_BUILD_FIELDS, &place);
+        let platform = match entry.get("platform") {
+            Some(Value::String(p)) if PLATFORMS.contains(&p.as_str()) => p.clone(),
+            _ => {
+                check.report(&place, &format!("'platform' is required: one of {}", PLATFORMS.join(", ")));
+                continue;
+            }
+        };
+        if builds.iter().any(|b| b.platform == platform) {
+            check.report(&place, &format!("there's already a {platform} build"));
+            continue;
+        }
+        let asset = check.text(entry, "asset", &place, true);
+        if asset.is_empty() {
+            continue;
+        }
+        let sample = fill_version(&asset, "1.0");
+        if sample.contains(['/', '\\']) || sample == "." || sample == ".." {
+            check.report(&place, "'asset' must be a file name, like \"Game-{version}-windows.zip\"");
+            continue;
+        }
+        // Check the launch with a sample version in place of the patterns, keep the patterns
+        let Some(raw) = entry.get("launch") else {
+            check.report(&place, "'launch' is required");
+            continue;
+        };
+        let filled: Value = serde_json::from_str(&fill_version(&raw.to_string(), "1.0")).unwrap_or(Value::Null);
+        let Some(mut launch) = load_launch(Some(&filled), &place, check) else { continue };
+        let pattern = |key: &str| raw.get(key).and_then(Value::as_str).unwrap_or_default().trim().replace('\\', "/");
+        launch.path = if launch.kind == LaunchKind::Android { String::new() } else { pattern("path") };
+        launch.package = if launch.kind == LaunchKind::Android { pattern("package") } else { String::new() };
+        if (platform == "android") != (launch.kind == LaunchKind::Android) {
+            check.report(&place, "an \"android\" build needs an \"android\" launch, and only it can have one");
+            continue;
+        }
+        let note = check.text(entry, "note", &place, false);
+        builds.push(ReleaseBuild { platform, asset, launch, note });
+    }
+    Some(Releases { repo, tag, builds })
+}
+
 fn load_version(entry: &Value, place: &str, check: &mut Checker) -> Option<Version> {
     let Value::Object(entry) = entry else {
         check.report(place, "must be an object { ... }");
@@ -453,6 +564,7 @@ fn load_version(entry: &Value, place: &str, check: &mut Checker) -> Option<Versi
     let mut version = Version {
         date: check.text(entry, "date", &place, false),
         notes: check.text(entry, "notes", &place, false),
+        details: String::new(),
         version: name,
         builds: Vec::new(),
     };

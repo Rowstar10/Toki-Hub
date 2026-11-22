@@ -11,6 +11,7 @@ pub mod installer;
 pub mod launcher;
 pub mod migrate;
 pub mod paths;
+pub mod releases;
 pub mod runtime;
 pub mod settings;
 pub mod sources;
