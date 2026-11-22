@@ -269,3 +269,21 @@ fn real_hu_taong_installs_from_its_public_releases_signed_out() {
     let folder = hub.installer.version_dir("hu-taong", newest);
     assert!(folder.join("Hu Taong.exe").is_file() && folder.join("_internal").join("Resources").is_dir());
 }
+
+/// The UI redraws when a release's builds arrive for versions game.json already lists (the number
+/// of versions doesn't change then).
+#[test]
+fn the_revision_goes_up_when_builds_arrive_for_listed_versions() {
+    let world = World::new();
+    let mut game = game_json();
+    game["versions"] = json!([{"version": "1.0", "notes": "Listed"}]);
+    write_game(&world.catalog(), "game", &game);
+    world.web.json(LIST, json!([release("v1.0", &[("Game-1.0-windows.zip", b"zip")])]));
+    let hub = hub(&world, &world.web.base);
+    let before = hub.poll(0)["catalog_revision"].as_u64().unwrap();
+    hub.check_releases();
+    let after = hub.poll(0)["catalog_revision"].as_u64().unwrap();
+    assert!(after > before, "{before} -> {after}");
+    hub.check_releases();
+    assert_eq!(hub.poll(0)["catalog_revision"].as_u64().unwrap(), after, "nothing new: no redraw");
+}

@@ -624,10 +624,21 @@ impl Library {
                 game.versions = releases::merge(&game.versions, releases::versions(source, &listing.releases));
             }
         }
-        let changed = {
-            let current = self.merged.read().unwrap();
-            current.games.iter().map(|g| (&g.id, g.versions.len())).ne(catalog.games.iter().map(|g| (&g.id, g.versions.len())))
+        // What the UI shows of the versions: when that changes (a release's builds or notes arrive,
+        // even for versions already listed), the revision goes up and the UI redraws
+        let shown = |catalog: &Catalog| -> Vec<(String, String, Vec<String>, usize)> {
+            catalog
+                .games
+                .iter()
+                .flat_map(|g| {
+                    g.versions.iter().map(|v| {
+                        let platforms = v.builds.iter().map(|b| b.platform.clone()).collect();
+                        (g.id.clone(), v.version.clone(), platforms, v.notes.len() + v.details.len())
+                    })
+                })
+                .collect()
         };
+        let changed = shown(&self.merged.read().unwrap()) != shown(&catalog);
         *self.merged.write().unwrap() = Arc::new(catalog);
         if changed {
             self.revision.fetch_add(1, Ordering::SeqCst);

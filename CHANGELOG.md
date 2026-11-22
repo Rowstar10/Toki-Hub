@@ -4,6 +4,10 @@ Every version of Toki Hub, newest first. Toki Hub shows this in Settings › Abo
 each release's notes start with its version's section. A new version needs its section here before
 it can be released: a line saying what it is about, then a "- " line for each change.
 
+## 0.3.19 — 2026-11-22
+
+- A game's versions show their Install button as soon as Toki Hub has checked its releases, without pressing reload
+
 ## 0.3.18 — 2026-11-22
 
 Toki Hub and Hu Taong come from public releases, ready for their source to go private.
